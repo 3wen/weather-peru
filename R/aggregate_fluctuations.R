@@ -1,0 +1,731 @@
+# From Regional to Aggregate Fluctuations
+library(tidyverse)
+library(labelled)
+# {seasonal} and {timetk} are needed here, for X13
+source("../weatherperu/R/utils.R")
+source("../weatherperu/R/detrending.R")
+
+# 1. Synthetic measure of the weather----
+
+# Data used in the local projections
+load("../data/output/df_lp.rda")
+
+average_price_crops <- 
+  df |> group_by(product_eng) |> 
+  summarise(price_crop = mean(Value_prices, na.rm = TRUE))
+
+
+# Load the estimated LP
+load("../R/output/resul_lp_piscop.rda")
+
+# Put the coefficients in a table, for each crop and each time horizon
+weather_variables <- c(
+  "temp_max_dev", "precip_piscop_sum_dev"
+  )
+coefs_weather <- map(
+  .x = resul_lp,
+  .f = ~ .x$coefs |> 
+    filter(name %in% weather_variables) |> 
+    select(horizon, name, value)
+)
+names(coefs_weather) <- map_chr(resul_lp, "crop_name")
+coefs_weather <- 
+  list_rbind(coefs_weather, names_to = "crop")
+
+nb_periods_wcal <- 9
+
+coefs_weather <- coefs_weather |> filter(horizon <= nb_periods_wcal)
+
+#' Computes the contribution of the weather for a single crop and time horizon
+#'
+#' @param lp_crop LP for a specific crop
+#' @param h horizon (single value)
+#' @param weather_variables vector of names of the weather variables
+#' @param ic_conf confidence interval used to determine whether a shock has a
+#'   significant effect (default to .95)
+weather_contrib_crop_h <- function(lp_crop,
+                                   h,
+                                   weather_variables,
+                                   ic_conf = .95) {
+  # The data
+  data_lp <- lp_crop$data_lp
+  data_lp <- data_lp[[which(names(data_lp) == h)]] |> 
+    select(region_id, date, product_eng, !!weather_variables) |> 
+    ungroup()
+  # The coefficients
+  lp_coefs <- 
+    lp_crop$coefs |> 
+    filter(horizon == !!h, name %in% !!weather_variables) |> 
+    mutate(
+      value_lb = value - qnorm(1 - ((1 - ic_conf) / 2)) * std,
+      value_ub = value + qnorm(1 - ((1 - ic_conf) / 2)) * std
+    )
+  
+  # Keeping the values
+  lp_coefs_value <- lp_coefs$value
+  # The lower and upper bounds
+  lp_coefs_value_lb <- lp_coefs$value_lb
+  lp_coefs_value_ub <- lp_coefs$value_ub
+  
+  data_lp |> 
+    nest(.by = c(date, region_id)) |> 
+    mutate(
+      contribution = map(
+        .x = data,
+        .f = ~ as.matrix(.x[, weather_variables]) %*% lp_coefs_value |> 
+          sum()
+      ),
+      contribution_lb = map(
+        .x = data,
+        .f = ~ as.matrix(.x[, weather_variables]) %*% lp_coefs_value_lb |> 
+          sum()
+      ),
+      contribution_ub = map(
+        .x = data,
+        .f = ~ as.matrix(.x[, weather_variables]) %*% lp_coefs_value_ub |> 
+          sum()
+      )
+    ) |> 
+    unnest(cols = c(contribution, contribution_lb, contribution_ub)) |> 
+    select(-data) |> 
+    mutate(
+      significant = (contribution_lb > 0 & contribution_ub > 0) | (contribution_lb < 0 & contribution_ub < 0),
+      significant = as.numeric(significant)
+    ) |> 
+    mutate(date = date + lubridate::period(str_c(!!h, " month")))
+}
+
+
+#' Computes the contribution of the weather for a single crop, for all horizons
+#'
+#' @param lp_crop LP for a specific crop
+#' @param weather_variables vector of names of the weather variables
+#' @param horizons vector of horizons. If `NULL`, uses all horizons in lp_crop
+contrib_weather_crop <- function(lp_crop,
+                                 weather_variables,
+                                 horizons = NULL) {
+  if (is.null(horizons)) horizons <- unique(lp_crop$coefs$horizon)
+  map(
+    .x = horizons,
+    .f = ~weather_contrib_crop_h(
+      lp_crop = lp_crop, 
+      h = .x, 
+      weather_variables = weather_variables
+    ) |> 
+      mutate(horizon = .x)
+  ) |> 
+    list_rbind() |> 
+    # group_by(date) |> 
+    # summarise(value = sum(contribution)) |> 
+    mutate(crop = lp_crop$crop_name) |> 
+    mutate(contribution_signif = contribution * significant)
+}
+
+# Apply the `contrib_weather_crop()` function to each crop
+# 
+weather_measure_crop <- 
+  map(
+    .x = resul_lp,
+    .f = ~contrib_weather_crop(
+      lp_crop = .x, 
+      weather_variables = weather_variables,
+      horizons = 0:nb_periods_wcal
+    )
+  ) |> 
+  list_rbind()
+
+
+weather_measure_crop <- 
+  weather_measure_crop |> 
+  left_join(
+    df |> select(product_eng, region_id, date, y_new, Value_prices),
+    by = c("date", "crop" = "product_eng", "region_id")
+  ) |> 
+  left_join(
+    average_price_crops,
+    by = c("crop" = "product_eng")
+  )
+
+# \gamma_{c,i,t,h}
+weather_measure_crop
+
+quantity_weight <- 
+  weather_measure_crop |> 
+  filter(horizon == 0) |> 
+  group_by(crop, date, horizon, price_crop) |> 
+  summarise(quantity_weight = sum(price_crop * y_new), .groups = "drop") |> 
+  select(crop, date, quantity_weight)
+
+
+agricultural_output <- 
+  quantity_weight |> 
+  group_by(date) |> 
+  summarise(quantity_weight = sum(quantity_weight), .groups = "drop") |> 
+  mutate(
+    # Remove seasonality
+    q_sa = adj_season_X13(quantity_weight, ymd("2001-01-01")),
+    # Extract trend
+    q_sa_trend = hp_filter_trend(q_sa, freq = 14400),
+    # Percentage dev. from trend
+    q = 100 * log(q_sa / q_sa_trend)
+  ) |> 
+  select(date, q)
+
+
+
+
+weather_adjusted_ag <- 
+  weather_measure_crop |> 
+  # each group: observations across regions, for a crop x date x horizon
+  group_by(crop, date, horizon, price_crop) |> 
+  # weather-adjusted agricultural production at each horizon
+  # y_{c,t,h}^{w}
+  summarise(
+    y_w = sum(price_crop * contribution_signif *  y_new / n(), na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  group_by(crop, date) |> 
+  # weather-adjusted agricultural production summed over horizons
+  # y_{c,t}^{w}
+  summarise(
+    y_w = sum(y_w),
+    .groups = "drop"
+  )
+
+
+w_df <- 
+  weather_adjusted_ag |> 
+  left_join(quantity_weight, by = c("crop", "date")) |> 
+  group_by(date) |> 
+  summarise(
+    w = sum(y_w) / sum(quantity_weight),
+    .groups = "drop"
+  )
+
+w_df <- w_df |> 
+  mutate(
+    w_trend = hp_filter_trend(w, freq = 14400),
+    w_dt = - 100 * (w - w_trend),
+  )
+
+# 2. Macro data----
+
+# See `data-macro.R`
+load("../data/output/macro/df_macro.rda")
+
+df_var <- 
+  df_macro |> 
+  left_join(
+    w_df,
+    by = "date"
+  )
+# |>
+#   left_join(
+#     agricultural_output,
+#     by = "date"
+#   )
+
+# We use the variable w_dt as the "Agricultural losses" variable
+df_var <- 
+  df_var |> 
+  mutate(
+    w = w_dt,
+    q = ya
+  )
+
+variable_names <- c(
+  "Agricultural losses" = "w",
+  "Real exchange rate" = "rer_dt_sa",
+  "Food inflation rate (pp)" = "pia",
+  "Inflation rate (pp)" = "pi",
+  "Exports (pp)" = "x",
+  "Agricultural output (pp)" = "q",
+  "GDP (pp)" = "y",
+  "Interest rate (pp)" = "r"
+)
+
+df_var <- 
+  df_var |>  
+  labelled::set_variable_labels(
+    w = "Agricultural losses",
+    q = "Agricultural output (pp)"
+  ) |> 
+  mutate(
+    w = w / 100, 
+    rer_dt_sa = rer_dt_sa / 100, 
+    pi = pi / 100, 
+    pia = pia / 100, 
+    # x
+    q = q / 100, 
+    y = y / 100, 
+    r = r / 100
+  )
+
+p_var_series <- 
+  ggplot(
+    data = df_var |> 
+      filter(date >= "2003-01-01") |> 
+      select(date, w, rer_dt_sa, pia, pi, x, q, y, r) |> 
+      pivot_longer(cols = -date) |> 
+      mutate(
+        name = factor(
+          name,
+          levels = variable_names,
+          labels = names(variable_names)
+        )
+      ),
+    mapping = aes(x = date, y = value)
+  ) +
+  geom_line() +
+  facet_wrap(~name, scales = "free_y") +
+  theme_paper() +
+  labs(x = NULL, y = NULL)
+
+df_var |> 
+  filter(date >= "2003-01-01") |> 
+  select(-date) |> cor() |> round(2)
+
+
+p_var_series
+
+if (1 == 0) {
+  # To save the plot in PDF using pdflatex
+  library(tikzDevice)
+  ggplot2_to_pdf(
+    plot = p_var_series,
+    path = "../../figs/", 
+    filename = "fig_var_series",
+    width = 9,
+    height = 4.5
+  )
+}
+
+
+# 3. Estimation----
+
+start_date <- "2003-01-01"
+
+df_var_ts <-
+  df_var |> 
+  filter(date >= start_date) |> 
+  select(
+    w, rer_dt_sa, pia, pi, x, q, y, r
+  ) |>
+  ts(start = c(year(start_date), month(start_date)), freq = 12)
+
+df_var |> 
+  filter(date >= start_date) |> 
+  select(
+    date, w, rer_dt_sa, pia, pi, x, q, y, r
+  ) |> 
+  write_csv(file = "../data/output/data_aggregate_fluct.csv")
+
+
+plot(df_var_ts)
+cor(df_var_ts)
+
+info_var_estim <- vars::VARselect(y = df_var_ts, type = "const", lag.max = 6)
+info_var_estim
+
+var_l1 <- vars::VAR(y = df_var_ts, p = 2, type = "const")
+summary(var_l1)
+
+# Imposing structure
+a <- diag(1, 8)
+a[lower.tri(a)] <- NA
+
+# Structural VAR
+svar_a <- vars::SVAR(var_l1, Amat = a, max.iter = 500)
+
+save(svar_a, df_var, file = "output/var_objects.rda")
+
+
+## IRFs----
+
+impulse_name <- "w"
+
+estim_irf <- FALSE
+
+if (estim_irf) {
+  
+  nb_runs <- 500
+  
+  irfs_95 <- vars::irf(
+    svar_a, impulse = impulse_name, boot = TRUE, ci = .95,
+    n.ahead = 20, runs = nb_runs
+  )
+  irfs_68 <- vars::irf(
+    svar_a, impulse = impulse_name, boot = TRUE, ci = .68, 
+    n.ahead = 20, runs = nb_runs
+  )
+  
+  save(irfs_95, file = "output/irfs_95_piscop.rda")
+  save(irfs_68, file = "output/irfs_68_piscop.rda")
+} else {
+  load("output/irfs_95_piscop.rda")
+  load("output/irfs_68_piscop.rda")
+}
+
+## Plot----
+
+levels <- variable_names
+labels <- names(variable_names)
+
+
+df_irfs <- 
+  irfs_95$irf[[impulse_name]] |> 
+  as_tibble() |> 
+  mutate(horizon = row_number()) |> 
+  pivot_longer(cols = -horizon) |> 
+  mutate(impulse = !!impulse_name)
+
+df_irfs <- 
+  df_irfs |> 
+  mutate(
+    name = factor(
+      name,
+      levels = !!levels,
+      labels = !!labels
+    )
+  )
+
+# Confidence intervals
+df_irfs_ci <- 
+  map(
+    .x = list(`95` = irfs_95, `68` = irfs_68),
+    .f = function(irf_lvl) {
+      map(
+        .x = list(lower = irf_lvl$Lower[[impulse_name]], upper = irf_lvl$Upper[[impulse_name]]),
+        .f = ~ .x |> 
+          as_tibble() |> 
+          mutate(horizon = row_number()) |> 
+          pivot_longer(cols = -horizon, values_to = "bound") |> 
+          mutate(impulse = !!impulse_name)
+      ) |> 
+        list_rbind(names_to = "bound_type")
+    }
+  ) |> 
+  list_rbind(names_to = "level") |> 
+  pivot_wider(names_from = bound_type, values_from = bound)
+
+
+df_irfs_ci <- 
+  df_irfs_ci |> 
+  mutate(
+    name = factor(
+      name,
+      levels = !!levels,
+      labels = !!labels),
+    level = factor(level, levels = c(68, 95), labels = c("68%", "95%"))
+  )
+
+p_var <- 
+  ggplot() +
+  geom_ribbon(
+    data = df_irfs_ci |> filter(level == "68%"),
+    mapping = aes(x = horizon,
+                  ymin = lower, ymax = upper,
+                  fill = level),
+    alpha = .3
+  ) +
+  geom_line(
+    data = df_irfs,
+    mapping = aes(x = horizon, y = value),
+    colour = "#009E73"
+  ) +
+  geom_hline(yintercept = 0, colour = "#444444") +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68%" = "#009E73", "95%" = "#b2df8a"),
+    guide = "none") +
+  facet_wrap(~name, scales = "free_y", ncol = 4) +
+  theme_paper() +
+  coord_cartesian(xlim = c(0, 20))
+
+p_var
+
+if (1 == 0) {
+  # Save the plot to PDF using pdflatex
+  library(tikzDevice)
+  library(lemon)
+  p_var <- 
+    ggplot() +
+    geom_ribbon(
+      data = df_irfs_ci |> 
+        filter(level == "68%") |> 
+        mutate(level = str_replace(level, "\\%", "\\\\%")),
+      mapping = aes(x = horizon,
+                    ymin = lower, ymax = upper,
+                    fill = level),
+      alpha = .2
+    ) +
+    geom_line(
+      data = df_irfs,
+      mapping = aes(x = horizon, y = value),
+      colour = "#009E73"
+    ) +
+    geom_hline(yintercept = 0, colour = "#444444") +
+    labs(x = "Horizon", y = NULL) +
+    scale_fill_manual(
+      "C.I. level", 
+      values = c("68\\%" = "gray10", "95\\%" = "gray60"),
+      guide = "none") +
+    facet_rep_wrap(~name, scales = "free_y", repeat.tick.labels = TRUE, ncol = 4) +
+    theme_paper() +
+    coord_cartesian(xlim = c(0, 20))
+  
+  ggplot2_to_pdf(
+    plot = p_var,
+    path = "../../figs/", 
+    filename = "fig_var",
+    width = 10,
+    height = 5.5
+  )
+}
+
+# 4. With Local Projections----
+
+df_lp <- 
+  df_var |> 
+  filter(date >= start_date) |> 
+  select(
+    w, rer_dt_sa, pi, pia, x, q, y, r
+  )
+
+
+library(lpirfs)
+results_lin_95 <- lp_lin(
+  endog_data     = df_lp,
+  lags_endog_lin = 2,# 2 lags
+  trend          = 0,# no trend
+  shock_type     = 0,# std dev. shock
+  confint        = 1.96,
+  hor            = 20
+)
+
+results_lin_68 <- lp_lin(
+  endog_data     = df_lp,
+  lags_endog_lin = 2,# 2 lags
+  trend          = 0,# no trend
+  shock_type     = 0,# std dev. shock
+  confint        = 1,
+  hor            = 20
+)
+
+
+get_irfs <- function(resul_lin) {
+  irf_lin_mean <- resul_lin[["irf_lin_mean"]]
+  irf_lin_low <- resul_lin[["irf_lin_low"]]
+  irf_lin_up <- resul_lin[["irf_lin_up"]]
+  specs <- resul_lin$specs
+  
+  irfs_df <- NULL
+  for (rr in 1:(specs$endog)) {
+    for (ss in 1:(specs$endog)) {
+      tbl_lin_mean <- as.matrix(t(irf_lin_mean[, 1:specs$hor, ss]))[, rr]
+      tbl_lin_low <- as.matrix(t(irf_lin_low[, 1:specs$hor, ss]))[, rr]
+      tbl_lin_up <- as.matrix(t(irf_lin_up[, 1:specs$hor, ss]))[, rr]
+      tbl_lin <- tibble(
+        horizon = seq_along(tbl_lin_mean), 
+        mean = tbl_lin_mean, 
+        low = tbl_lin_low, 
+        up = tbl_lin_up,
+        shocked = specs$column_names[ss],
+        on = specs$column_names[rr]
+      )
+      irfs_df <- bind_rows(irfs_df, tbl_lin)
+    }
+  }
+  
+  irfs_df <- 
+    irfs_df |>
+    mutate(
+      shocked = factor(shocked, levels = variable_names, labels = names(variable_names)),
+      on = factor(on, levels = variable_names, labels = names(variable_names))
+    )
+  
+  irfs_df
+}
+
+
+irfs_df <- 
+  get_irfs(results_lin_95) |> mutate(level = "95%") |> 
+  bind_rows(
+    get_irfs(results_lin_68) |> mutate(level = "68%")
+  )
+
+# For the WCAL equation, only an autoregressive process
+results_lin_95_wcal <- lp_lin(
+  endog_data     = df_lp |> 
+    mutate(
+      w_lag_1 = dplyr::lag(w, n = 1L),
+      w_lag_2 = dplyr::lag(w, n = 2L)
+    ) |> 
+    select(w, w_lag_1, w_lag_2),
+  lags_endog_lin = 1,
+  trend          = 0,
+  shock_type     = 0,
+  confint        = 1.96,
+  hor            = 20
+)
+
+results_lin_68_wcal <- lp_lin(
+  endog_data     = df_lp |> 
+    mutate(
+      w_lag_1 = dplyr::lag(w, n = 1L),
+      w_lag_2 = dplyr::lag(w, n = 2L)
+    ) |> 
+    select(w, w_lag_1, w_lag_2),,
+  lags_endog_lin = 1,
+  trend          = 0,
+  shock_type     = 0,
+  confint        = 1,
+  hor            = 20
+)
+
+
+irfs_df_wcal <- 
+  get_irfs(results_lin_95_wcal) |> mutate(level = "95%") |> 
+  filter(shocked == "Agricultural losses", on == "Agricultural losses") |> 
+  bind_rows(
+    get_irfs(results_lin_68_wcal) |> mutate(level = "68%") |> 
+      filter(shocked == "Agricultural losses", on == "Agricultural losses")
+  )
+
+irfs_df_plot <- 
+  irfs_df |> 
+  filter(shocked == "Agricultural losses") |> 
+  filter(on != "Agricultural losses") |> 
+  bind_rows(irfs_df_wcal)
+  
+ggplot() +
+  geom_ribbon(
+    data = irfs_df_plot, 
+    mapping = aes(
+      x = horizon,
+      ymin = low, ymax = up,
+      fill = level),
+    alpha = .3
+  ) +
+  geom_line(
+    data = irfs_df_plot,
+    mapping = aes(x = horizon, y = mean),
+    colour = "#0072B2"
+  ) +
+  geom_hline(yintercept = 0, colour = "#444444") +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68%" = "#0072B2", "95%" = "#56B4E9")) +
+  facet_wrap(~on, scales = "free_y", ncol = 4) +
+  theme_paper() +
+  coord_cartesian(xlim = c(0, 20)) +
+  scale_y_continuous(labels = scales::label_percent())
+
+
+if (1 == 0) {
+  # Save the plot to PDF using pdflatex
+  library(tikzDevice)
+  library(lemon)
+  p_lp <- 
+    ggplot(
+      data = irfs_df_plot |> 
+        filter(level == "68%") |> 
+        mutate(level = str_replace(level, "\\%", "\\\\%")) |> 
+        mutate(
+          mean = mean * 100,
+          low = low * 100,
+          up = up * 100
+        )
+    ) +
+    geom_ribbon(
+      mapping = aes(x = horizon,ymin = low, ymax = up, fill = level),
+      alpha = .2
+    ) +
+    geom_line(
+      mapping = aes(x = horizon, y = mean),
+      colour = "#009E73"
+    ) +
+    geom_hline(yintercept = 0, colour = "#444444") +
+    labs(x = "Horizon", y = NULL) +
+    scale_fill_manual(
+      "C.I. level", 
+      values = c("68\\%" = "gray10", "95\\%" = "gray60"),
+      guide = "none") +
+    facet_rep_wrap(~on, scales = "free_y", repeat.tick.labels = TRUE, ncol = 4) +
+    theme_paper() +
+    coord_cartesian(xlim = c(0, 20))
+  
+  ggplot2_to_pdf(
+    plot = p_lp,
+    path = "../../figs/", 
+    filename = "fig_lp_macro",
+    width = 10,
+    height = 5.5)
+  
+}
+
+# 5. Comparison----
+
+df_plot_comparison <- 
+  df_irfs_ci |> left_join(df_irfs |> rename(mean = value)) |> 
+  filter(level == "68%") |> 
+  mutate(level = str_replace(level, "\\%", "\\\\%")) |> 
+  mutate(estimation = "VAR(2)") |> 
+  rename(on = name, shocked = impulse) |> 
+  bind_rows(
+    irfs_df_plot |> 
+      filter(level == "68%") |> 
+      mutate(level = str_replace(level, "\\%", "\\\\%")) |> 
+      mutate(
+        mean = mean * 100,
+        lower = low * 100,
+        upper = up * 100
+      ) |> 
+      select(-low, -up) |> 
+      mutate(estimation = "Local Projections")
+  ) |> 
+  mutate(
+    estimation = factor(estimation, levels = c("VAR(2)", "Local Projections"))
+  )
+colour_1 <- "#E69F00"
+colour_2 <- "#009E73"
+
+p_comparison <- ggplot(
+  data = df_plot_comparison
+) +
+  geom_ribbon(
+    mapping = aes(x = horizon,ymin = lower, ymax = upper, fill = estimation),
+    alpha = .4
+  ) +
+  geom_line(
+    mapping = aes(x = horizon, y = mean, colour = estimation, linetype = estimation)
+  ) +
+  geom_hline(yintercept = 0, colour = "#444444") +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    NULL,
+    values = c("VAR(2)" = colour_1, "Local Projections" = colour_2)
+  ) +
+  scale_colour_manual(
+    NULL,
+    values = c("VAR(2)" = colour_1, "Local Projections" = colour_2)
+  ) +
+  scale_linetype_manual(
+    NULL,
+    values = c("VAR(2)" = "solid", "Local Projections" = "dashed")
+  ) +
+  lemon::facet_rep_wrap(~on, scales = "free_y", repeat.tick.labels = TRUE, ncol = 4) +
+  theme_paper() +
+  coord_cartesian(xlim = c(1, 20))
+
+p_comparison
+
+ggplot2_to_pdf(
+  plot = p_comparison,
+  path = "../../figs/", 
+  filename = "fig-irfs-w-comparison",
+  width = 10,
+  height = 5.5
+)
