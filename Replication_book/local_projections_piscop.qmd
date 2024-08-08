@@ -1,0 +1,827 @@
+# The Dynamic Effects of Weather Shocks {#sec-lp-piscop}
+
+:::{.callout-note}
+
+## Objectives
+
+Estimate response functions of agricultural production following a weather shock, using Local Projections
+
+:::
+
+```{r}
+#| echo: false
+#| eval: true
+#| message: false
+#| warning: false
+colorize <- function(x, color) {
+  if (knitr::is_latex_output()) {
+    if (grep(x = color, "^#")) {
+      color <- deparse(substitute(color))
+    }
+    sprintf("\\textcolor{%s}{%s}", color, x)
+  } else if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'>%s</span>", color,
+            x)
+  } else x
+}
+
+wongBlack     <- "#000000"
+wongGold      <- "#E69F00"
+wongLightBlue <- "#56B4E9"
+wongGreen     <- "#009E73"
+wongYellow    <- "#F0E442"
+wongBlue      <- "#0072B2"
+wongOrange    <- "#D55E00"
+wongPurple    <- "#CC79A7"
+
+
+rouge <- "#D81B60"
+bleu <- "#1E88E5"
+jaune <- "#FFC107"
+vert <- "#004D40"
+highlight <- wongGold
+```
+
+$$
+\definecolor{bayesred}{RGB}{147, 30, 24}
+\definecolor{bayesblue}{RGB}{32, 35, 91}
+\definecolor{bayesorange}{RGB}{218, 120, 1}
+\definecolor{grey}{RGB}{128, 128, 128}
+\definecolor{couleur1}{RGB}{0,163,137}
+\definecolor{couleur2}{RGB}{255,124,0}
+\definecolor{couleur3}{RGB}{0, 110, 158}
+\definecolor{coul1}{RGB}{255,37,0}
+\definecolor{coul2}{RGB}{242,173,0}
+\definecolor{col_neg}{RGB}{155, 191, 221}
+\definecolor{col_pos}{RGB}{255, 128, 106}
+\definecolor{wongBlack}{RGB}{0,0,0}
+\definecolor{wongLightBlue}{RGB}{86, 180, 233}
+\definecolor{wongGold}{RGB}{230, 159, 0}
+\definecolor{wongGreen}{RGB}{0, 158, 115}
+\definecolor{wongYellow}{RGB}{240, 228, 66}
+\definecolor{wongBlue}{RGB}{0, 114, 178}
+\definecolor{wongOrange}{RGB}{213, 94, 0}
+\definecolor{wongPurple}{RGB}{204, 121, 167}
+\definecolor{IBMPurple}{RGB}{120, 94, 240}
+\definecolor{IBMMagenta}{RGB}{220, 38, 127}
+$$
+
+This chapter uses @jorda2005estimation Local Projection framework to measure how sensitive agricultural output is to exogenous changes in the weather.
+
+```{r}
+library(tidyverse)
+library(fastDummies)
+```
+
+The data can be loaded (see [Chapter -@sec-merge])
+```{r}
+load("../data/output/df_lp.rda")
+df
+```
+
+
+Some packages are needed, make sure that they are installed.
+
+```{r}
+# install.packages("fastDummies")
+# install.packages("imputeTS")
+# install.packages("ggh4x")
+# install.packages("mFilter")
+# install.packages("pbapply")
+# install.packages("latex2exp")
+# install.packages("sandwich")
+```
+
+
+We load some useful functions:
+```{r}
+# Functions useful to shape the data for local projections
+source("../weatherperu/R/format_data.R")
+
+# Load function in utils
+source("../weatherperu/R/utils.R")
+
+# Load detrending functions
+source("../weatherperu/R/detrending.R")
+```
+
+
+## Linear Local Projections {#sec-lp-linear-piscop}
+
+In this section, we focus on estimating the Local Projections [@jorda2005estimation] to quantify the impact of weather on agricultural production. We use panel data, similar to the approach used in the study by @acevedo2020effects, and independently estimate models for each specific crop.
+
+For a particular crop denoted as $c$, the model can be expressed as follows:
+$$
+\begin{aligned}
+\underbrace{y_{c,i,{\color{wongGold}t+h}}}_{\text{Production}} = &  {\color{wongOrange}\beta_{c,{\color{wongGold}h}}^{{\color{wongPurple}T}}} {\color{wongPurple}{T_{i,{\color{wongGold}t}}}} + {\color{wongOrange}\beta_{c,{\color{wongGold}h}}^{{\color{wongPurple}P}}} {\color{wongPurple}P_{i,{\color{wongGold}t}}}\\
+        &+\gamma_{c,i,h}\underbrace{X_{t}}_{\text{controls}}  + \underbrace{\zeta_{c,i,h} \text{Trend}_{t} \times \text{Month}_t + \eta_{c,i,h} \text{Trend}^2_{t} \times \text{Month}_t}_{\text{regional monthly trend}} + \varepsilon_{c,i,t+h}
+\end{aligned}
+$$ {#eq-model-lp}
+
+Here, $i$ represents the region, $t$ represents the time, and $h$ represents the horizon. The primary focus lies on estimating `r colorize("the coefficients", wongOrange)` associated with `r colorize("temperature", wongPurple)` and `r colorize("precipitation", wongPurple)` for different `r colorize("time horizons", wongGold)` $\color{wongGold}h=\{0,1,...,T_{c}\}$
+
+Note that we allow a crop regional monthly specific quadratic trend to be estimated.
+
+### Functions {#sec-lp-functions-piscop}
+
+To estimate the models, we develop a function, `get_data_lp()`{.R}, that generates the endogenous variable and the regressors for a specific crop, considering a given time horizon. This function is designed to return a list where each element represents the dataset that will be used for estimating the model corresponding to a specific time horizon.
+
+When we call the `get_data_lp()`{.R} function, we check for missing values in the weather data. If missing values are present for a specific region and crop, we keep only the longest consecutive sequence without missing values. To achieve this, we use the two functions defined previously: `get_index_longest_non_na()`{.R} and `keep_values_longest_non_na()`{.R}.
+
+```{r define-get_data_lp}
+#' Get the data in a table for the local projections, for a specific crop
+#'
+#' @param df original dataset
+#' @param horizons number of horizons
+#' @param y_name name of the exogenous variable
+#' @param group_name name of the group variable
+#' @param crop_name name of the crop to focus on
+#' @param control_names vector of names of the control variables
+#' @param weather_names vector of names of the weather variables
+#' @param add_month_fe should columns with month dummy variables be added?
+#'   Default to `TRUE`
+#' @param share_geo vector of names of the variables that contain the share of
+#'   each type of geographical pattern. By default `NULL`: no share used
+#' @param transition_name name of the variable used to define the transition to
+#'   the two states. By default `NULL`
+#' @param transition_method if transition function, name of the method to use:
+#'   `logistic` or `normal` (default to `NULL`, i.e., no transition)
+#' @param state_names name of the two states in a vector of characters (only if
+#'   `transition_name` is not `NULL`). First period corresponds to mapped values
+#'   of `transition_name` close to 0, which is for large positive values of
+#'   `transition_name`
+#' @param gamma logistic growth rate (default to 3, only used if
+#'   `transition_name` is not `NULL`)
+#' @param other_var_to_keep vector of names of other variables to keep (default
+#'   to `NULL`: no additional vairable kept)
+#' @export
+#' @importFrom dplyr filter select mutate sym group_by across rowwise arrange
+#'   slice lead ends_with
+#' @importFrom fastDummies dummy_cols
+#' @importFrom stringr str_c str_detect
+get_data_lp <- function(df,
+                        horizons,
+                        y_name,
+                        group_name,
+                        crop_name,
+                        control_names,
+                        weather_names,
+                        add_month_fe = TRUE,
+                        share_geo = NULL,
+                        transition_name = NULL,
+                        transition_method = NULL,
+                        state_names = c("planted", "harvested"),
+                        gamma = 3,
+                        other_var_to_keep = NULL) {
+
+  if (!is.null(share_geo) & !is.null(transition_name)) {
+    stop("You can only use one between share_geo and transition_name")
+  }
+
+  # Init empty object to return: list of length horizons
+  df_horizons <- vector(mode = "list", length = horizons + 1)
+
+  # Keep only the variables needed
+  df_focus <-
+    df |>
+    filter(product_eng == !!crop_name) |>
+    select(
+      !!y_name,
+      !!group_name,
+      date,
+      product_eng,
+      !!!control_names,
+      !!!weather_names,
+      !!!share_geo,
+      !!transition_name,
+      !!other_var_to_keep
+    ) |>
+    mutate(
+      !!group_name := factor(!!sym(group_name))
+    )
+
+  # Month dummy fixed-effects
+  if (add_month_fe) {
+    df_focus <- df_focus |>
+      mutate(
+        month = as.character(lubridate::month(date))
+      ) |>
+      dummy_cols(select_columns = "month", remove_first_dummy = FALSE)
+  }
+
+
+  # For each region, only keep the longest sequence of non NA values found in
+  # the weather variables
+  df_focus <-
+    df_focus |>
+    group_by(region_id) |>
+    mutate(
+      across(
+        .cols  = !!weather_names,
+        .fns   = keep_values_longest_non_na,
+        .names = "{.col}_keep"
+      )
+    ) |>
+    rowwise() |>
+    mutate(keep_cols = all(across(ends_with("_keep")))) |>
+    ungroup() |>
+    filter(keep_cols) |>
+    select(-keep_cols, -!!paste0(weather_names, "_keep"))
+
+  if (!is.null(share_geo)) {
+    # For each geographical type, multiply the weather variables by the share
+    # that the geo. type represents
+    for(share_geo_type in share_geo) {
+      df_focus <-
+        df_focus |>
+        mutate(
+          across(
+            .cols  = !!weather_names,
+            .fns   = ~ .x * !!sym(share_geo_type),
+            .names = str_c("{.col}_", share_geo_type)
+          )
+        )
+    }
+  }
+
+  if (!is.null(transition_name)) {
+
+    state_1_name <- state_names[1]
+    state_2_name <- state_names[2]
+
+    if (transition_method == "logistic") {
+      df_focus <-
+        df_focus |>
+        mutate(
+          fz = logist(!!sym(transition_name), gamma = gamma)
+        )
+    } else if (transition_method == "normal") {
+      df_focus <-
+        df_focus |>
+        mutate(
+          fz = pnorm(-!!sym(transition_name))
+        )
+    } else {
+      stop("transition method must be either \"losistic\" or \"normal\"")
+    }
+    df_focus <- df_focus |>
+      dummy_cols(group_name, remove_first_dummy = FALSE)
+
+    ind_dummies_group <- str_detect(colnames(df_focus), str_c(group_name, "_"))
+    dummies_group_name <- colnames(df_focus)[ind_dummies_group]
+
+    if (add_month_fe) {
+      ind_dummies_month <- str_detect(colnames(df_focus), "^month_")
+      dummies_month_name <- colnames(df_focus)[ind_dummies_month]
+      dummies_group_name <- c(dummies_group_name, dummies_month_name)
+    }
+
+    df_focus <-
+      df_focus |>
+      mutate(
+        # First regime:
+        across(
+          .cols  = c(!!!control_names, !!!weather_names, !!!dummies_group_name),
+          .fns   = list(
+            state_1_name = ~ (1 - fz) * .x,
+            state_2_name = ~ fz * .x
+          ),
+          .names = "{fn}_{col}"
+        )
+      ) |>
+      rename_with(
+        .fn = ~str_replace(string = .x, pattern = "state_1_name", replacement = state_1_name),
+        .cols = starts_with("state_1_name")
+      ) |>
+      rename_with(
+        .fn = ~str_replace(string = .x, pattern = "state_2_name", replacement = state_2_name),
+        .cols = starts_with("state_2_name")
+      )
+  } else {
+    df_focus <-
+      df_focus |>
+      dummy_cols(group_name, remove_first_dummy = FALSE)
+  }
+
+
+  # Prepare the values for y at t+h
+  for (h in 0:horizons) {
+    df_horizons[[h+1]] <-
+      df_focus |>
+      group_by(!!sym(group_name)) |>
+      arrange(date) |>
+      mutate(time = row_number()) |>
+      mutate(y_lead = dplyr::lead(!!sym(y_name), n = h)) |>
+      slice(1:(n()-h)) |>
+      ungroup()
+  }
+  names(df_horizons) <- 0:horizons
+  df_horizons
+}
+```
+
+Following the data preparation step, we proceed to define a function that performs the estimation of models for all time horizons. This function uses the datasets obtained through the `get_data_lp()`{.R} function.
+
+```{r define-estimate-linear-lp}
+#' Estimate Local Projections
+#'
+#' @param df original dataset
+#' @param horizons number of horizons
+#' @param y_name name of the exogenous variable
+#' @param group_name name of the group variable
+#' @param crop_name name of the crop to focus on
+#' @param control_names vector of names of the control variables
+#' @param weather_names vector of names of the weather variables
+#' @param detrend if `TRUE` a group-wise quadratic temporal effect is estimated
+#'  (group:time + group:I(time^2))
+#' @param add_month_fe should columns with month dummy variables be added?
+#'   Default to `TRUE`
+#' @param add_intercept should an intercept we added to the regressions?
+#'   (default to `FALSE`)
+#' @param share_geo vector of names of the variables that contain the share of
+#'   each type of geographical pattern. By default `NULL`: no share used
+#' @param std type of standard error (`"NW"` for Newey-West, `"Cluster"`,
+#'   `"Standard"` otherwise)
+#' @param transition_name name of the variable used to define the transition to
+#'   the two states. By default `NULL`
+#' @param transition_method if transition function, name of the method to use:
+#'   `logistic` or `normal` (default to `NULL`, i.e., no transition)
+#' @param state_names name of the two states in a vector of characters (only if
+#'   `transition_name` is not `NULL`). First period corresponds to mapped values
+#'   of `transition_name` close to 0, which is for large positive values of
+#'   `transition_name`
+#' @param gamma logistic growth rate (default to 3, only used if
+#'   `transition_name` is not `NULL`)
+#' @param other_var_to_keep vector of names of other variables to keep in the
+#'   returned dataset (default to `NULL`: no additional vairable kept)
+#' @export
+#' @importFrom dplyr mutate sym ungroup summarise across left_join
+#' @importFrom stringr str_c str_detect
+#' @importFrom purrr map map_dbl list_rbind
+#' @importFrom tibble enframe
+#' @importFrom tidyr pivot_longer
+#' @importFrom sandwich NeweyWest
+#' @importFrom stats sd model.matrix nobs residuals lm coef
+estimate_linear_lp <- function(df,
+                              horizons,
+                              y_name,
+                              group_name,
+                              crop_name,
+                              control_names,
+                              weather_names,
+                              detrend = TRUE,
+                              add_month_fe = TRUE,
+                              add_intercept = FALSE,
+                              share_geo = NULL,
+                              transition_name = NULL,
+                              transition_method = NULL,
+                              state_names = c("planted", "harvested"),
+                              gamma = 3,
+                              std = c("nw", "cluster", "standard"),
+                              other_var_to_keep = NULL) {
+
+  # Format the dataset
+  data_lp <-
+    get_data_lp(
+      df = df,
+      horizons = horizons,
+      y_name = y_name,
+      group_name = group_name,
+      crop_name = crop_name,
+      control_names = control_names,
+      weather_names = weather_names,
+      share_geo = share_geo,
+      transition_name = transition_name,
+      transition_method = transition_method,
+      state_names = state_names,
+      gamma = gamma,
+      other_var_to_keep = other_var_to_keep
+    )
+
+  # Recode levels for the groups
+  for(h in 0:horizons){
+    data_lp[[h + 1]] <-
+      data_lp[[h + 1]] |>
+      mutate(
+        !!group_name := as.factor(as.character(!!sym(group_name)))
+      )
+  }
+
+  control_names_full <- control_names
+  weather_names_full <- weather_names
+  ind_names_groups <- str_detect(
+    colnames(data_lp[[1]]), str_c("^", group_name, "_")
+  )
+  group_names_full <- colnames(data_lp[[1]])[ind_names_groups]
+
+  if (!is.null(share_geo)) {
+    # Name of the weather variables
+    weather_names_full <- paste(
+      rep(weather_names, each = length(share_geo)),
+      share_geo,
+      sep = "_"
+    )
+  }
+
+  if (!is.null(transition_name)) {
+
+    state_1_name <- str_c(state_names[1], "_")
+    state_2_name <- str_c(state_names[2], "_")
+
+    # Name of the variables
+    weather_names_full <- str_c(
+      rep(
+        c(state_1_name, state_2_name),
+        each = length(weather_names)
+      ),
+      rep(weather_names, 2)
+    )
+    control_names_full <- str_c(
+      rep(
+        c(state_1_name, state_2_name),
+        each = length(control_names)
+      ),
+      rep(control_names, 2)
+    )
+    ind_names_groups <- str_detect(
+      colnames(data_lp[[1]]),
+      str_c("(^", state_1_name, "|", state_2_name, ")", group_name, "_")
+    )
+    group_names_full <- colnames(data_lp[[1]])[ind_names_groups]
+  }
+
+  # Observed standard deviations in the data
+  sd_weather_shock <-
+    map(
+      .x = data_lp,
+      .f = ~ungroup(.x) |>
+        summarise(
+          across(
+            .cols  = c(!!control_names_full, !!weather_names_full, !!share_geo),
+            .fns   = sd
+          )
+        )
+    ) |>
+    list_rbind(names_to = "horizon") |>
+    pivot_longer(cols = -horizon, names_to = "name", values_to = "std_shock") |>
+    mutate(horizon = as.numeric(horizon))
+
+  # Observed median value in the data
+  median_weather_shock <-
+    map(
+      .x = data_lp,
+      .f = ~ungroup(.x) |>
+        summarise(
+          across(
+            .cols  = c(!!control_names_full, !!weather_names_full, !!share_geo),
+            .fns   = ~quantile(.x, probs = .5)
+          )
+        )
+    ) |>
+    list_rbind(names_to = "horizon") |>
+    pivot_longer(cols = -horizon, names_to = "name", values_to = "median_shock") |>
+    mutate(horizon = as.numeric(horizon))
+
+  # Observed quantile of order 0.05 value in the data
+  q05_weather_shock <-
+    map(
+      .x = data_lp,
+      .f = ~ungroup(.x) |>
+        summarise(
+          across(
+            .cols  = c(!!control_names_full, !!weather_names_full, !!share_geo),
+            .fns   = ~quantile(.x, probs = .05)
+          )
+        )
+    ) |>
+    list_rbind(names_to = "horizon") |>
+    pivot_longer(cols = -horizon, names_to = "name", values_to = "q05_shock") |>
+    mutate(horizon = as.numeric(horizon))
+
+  # Observed quantile of order 0.95 value in the data
+  q95_weather_shock <-
+    map(
+      .x = data_lp,
+      .f = ~ungroup(.x) |>
+        summarise(
+          across(
+            .cols  = c(!!control_names_full, !!weather_names_full, !!share_geo),
+            .fns   = ~quantile(.x, probs = .95)
+          )
+        )
+    ) |>
+    list_rbind(names_to = "horizon") |>
+    pivot_longer(cols = -horizon, names_to = "name", values_to = "q95_shock") |>
+    mutate(horizon = as.numeric(horizon))
+
+  if (detrend == TRUE) {
+    formula_lp <- paste0(
+      "y_lead",
+      " ~ -1+",
+      # " ~ 1+", # intercept
+      paste(weather_names_full, collapse = " + "),
+      " + ",
+      paste(control_names_full, collapse = " + "),
+      " + ",
+      # ifelse(
+      #   add_intercept,
+      #   # removing last group
+      #   yes = paste(group_names_full[-length(group_names_full)], collapse = " + "),
+      #   # keeping last group
+      #   no = paste(group_names_full, collapse = " + ")
+      # ),
+      # " + ",
+      # Group-specific trend
+      paste0(
+        c(
+          paste0(group_names_full, ":time:factor(month)"),
+          paste0(group_names_full, ":I(time^2):factor(month)")
+        ),
+        collapse = " + "
+      )
+      # " + ",
+      # # Group-specific Calendar month effect
+      # paste0(
+      #   paste0(group_names_full, ":factor(month)"),
+      #   collapse = " + "
+      # )
+    )
+  } else {
+    # Formula for the regressions
+    formula_lp <- paste0(
+      "y_lead",
+      " ~ -1+",
+      # " ~ 1+", # intercept
+      paste(weather_names_full, collapse = " + "),
+      " + ",
+      paste(control_names_full, collapse = " + "),
+      " + ",
+      ifelse(
+        add_intercept,
+        # removing last group
+        yes = paste(group_names_full[-length(group_names_full)], collapse = " + "),
+        # keeping last group
+        no = paste(group_names_full, collapse = " + ")
+      )
+    )
+  }
+
+  if (add_month_fe) {
+    formula_lp <- paste0(
+      formula_lp, " + ", paste(paste0("month_", 1:11), collapse = " + ")
+    )
+  }
+
+  empty_res <- vector(mode = "list", length = horizons + 1)
+  reg_lp <- empty_res
+  sig_ols <- empty_res
+  log_likelihood <- empty_res
+  mse <- empty_res
+  coefs <- empty_res
+  cl_std <- empty_res
+
+  for (h in 0:horizons) {
+    # Global assignment... otherwise, errors with coeftest()
+    current_data_h <<- data_lp[[h+1]]
+    # Regression
+    reg_h <- lm(formula = formula_lp, data = current_data_h)
+    # Standard error of the residuals
+    sig_ols_h <- sd(reg_h$residuals)
+    # Log likelihood
+    u_h <- reg_h$residuals
+    log_likelihood_h <-
+      sum(log(1 / sqrt(2 * pi * sig_ols_h^2) * exp(-u_h^2 / (2 * sig_ols_h^2))))
+    mse_h <- mean(u_h^2)
+    coefs_h <- enframe(coef(reg_h)) |> mutate(horizon = h)
+    if (std == "Cluster") {
+      cl_std_h <- coeftest(
+        reg_h,
+        vcov = vcovCL,
+        cluster = formula(str_c("~", group_name)))[, "Std. Error"] |>
+        enframe() |>
+        mutate(horizon = h)
+    } else {
+      cl_std_h <- enframe(sqrt(diag(vcov(reg_h))), value = "std") |>
+        mutate(horizon = h)
+    }
+
+    # Store results in lists
+    reg_lp[[h+1]] <- reg_h
+    sig_ols[[h+1]] <- sig_ols_h
+    log_likelihood[[h+1]] <- log_likelihood_h
+    mse[[h+1]] <- mse_h
+    coefs[[h+1]] <- coefs_h
+    cl_std[[h+1]] <- cl_std_h
+  }
+
+  se_df <- list_rbind(cl_std) |> rename(std = value)
+
+  coefs <-
+    coefs |> list_rbind() |>
+    left_join(se_df, by = c("horizon", "name")) |>
+    mutate(
+      crop = crop_name,
+      horizon = as.numeric(horizon)
+    ) |>
+    left_join(sd_weather_shock, by = c("horizon", "name")) |>
+    left_join(median_weather_shock, by = c("horizon", "name")) |>
+    left_join(q05_weather_shock, by = c("horizon", "name")) |>
+    left_join(q95_weather_shock, by = c("horizon", "name"))
+
+  list(
+    # reg_lp = reg_lp,
+    coefs = coefs,
+    horizons = horizons,
+    log_likelihood = log_likelihood |> list_c(),
+    mse = mse |> list_c(),
+    crop_name = crop_name,
+    data_lp = data_lp
+  )
+}
+```
+
+
+To estimate the clustered standard errors, we use the `coeftest()`{.R} function from {lmtest}. The covariance matrix estimation is performed using the `vcovCL()`{.R} from {sandwich}.
+```{r}
+library(lmtest)
+library(sandwich)
+```
+
+
+::: {.callout-note}
+
+#### Note
+
+The `get_data_lp()`{.R} function is defined in the R script saved here: `/weatherperu/R/format_data.R`.
+The estimation function, `estimate_linear_lp()`{.R}, is defined in the R script saved here: `/weatherperu/R/estimations.R`.
+
+```{r}
+source("../weatherperu/R/estimations.R")
+```
+
+
+:::
+
+### Estimation {#sec-lp-estimation-piscop}
+
+To loop over the different crops, we can use the `map()`{.R} function. This function enables us to apply the `estimate_linear_lp()`{.R} function to each crop iteratively, facilitating the estimation process.
+
+
+```{r lp-lin-estim}
+crops <- df$product_eng |> unique()
+weather_variables <- c("temp_max_dev", "precip_piscop_sum_dev")
+control_variables <- c(
+  "rer_hp", "r_hp", "pi", "ind_prod", "ONI", "price_int_inf"
+)
+```
+
+The estimation (this code takes about a minute to run, we load results in this notebook):
+```{r, eval=FALSE}
+resul_lp <- vector(mode = "list", length = length(crops))
+for (i_crop in 1:length(crops)) {
+  resul_lp[[i_crop]] <- estimate_linear_lp(
+    df,
+    horizons = 14,
+    y_name = "y_new_normalized",
+    group_name = "region_id",
+    detrend = TRUE,
+    add_month_fe = FALSE,
+    add_intercept = FALSE,
+    crop_name = crops[i_crop],
+    control_names = control_variables,
+    weather_names = weather_variables,
+    std = "Cluster",
+    other_var_to_keep = "y_new"
+  )
+}
+save(resul_lp, file = "../R/output/resul_lp_piscop.rda")
+```
+
+```{r}
+load("../R/output/resul_lp_piscop.rda")
+```
+
+
+### Results
+
+
+We can visualize the Impulse Response Functions (IRFs) by plotting the estimated coefficients associated with the weather variables. These coefficients represent the impact of weather on agricultural production and can provide valuable insights into the dynamics of the system. By plotting the IRFs, we can gain a better understanding of the relationship between weather variables and the response of agricultural production over time.
+
+The data for the graphs:
+```{r create-df-irfs-lp}
+df_irfs_lp <- map(resul_lp, "coefs") |> 
+  list_rbind() |> 
+  filter(name %in% weather_variables) |> 
+  mutate(
+    shock_1_sd = value * std_shock,
+    lower_95 = (value - qnorm(0.975) * std) * std_shock,
+    upper_95 = (value + qnorm(0.975) * std) * std_shock,
+    lower_68 = (value - qnorm(0.84)  * std) * std_shock,
+    upper_68 = (value + qnorm(0.84)  * std) * std_shock
+  ) |> 
+  mutate(
+    crop = factor(
+      crop, 
+      levels = c("Rice", "Dent corn", "Potato", "Cassava"),
+      labels = c("Rice", "Maize", "Potato", "Cassava"))
+  ) |> 
+  mutate(
+    name = factor(
+      name,
+      levels = c(
+        "temp_max_dev",
+        "precip_piscop_sum_dev"
+      ),
+      labels = c(
+        "Temp. anomalies", 
+        "Precip. anomalies"
+      )
+    )
+  )
+```
+
+For the confidence intervals:
+```{r create-df-irfs-lp-ci}
+df_irfs_lp_ci <- 
+  df_irfs_lp |> 
+  select(horizon, crop, name, matches("^(lower)|^(upper)", perl = TRUE)) |> 
+  pivot_longer(
+    cols = matches("^(lower)|^(upper)", perl = TRUE),
+    names_pattern = "(.*)_(95|68)$",
+    names_to = c(".value", "level")
+  ) |> 
+  mutate(level = str_c(level, "%"))
+```
+
+
+
+```{r}
+#| fig-cap: Agricultural production response to a weather shock
+#| label: fig-simple-projection
+#| fig-width: 10
+#| fig-height: 6
+
+nb_h <- 14
+
+# Duration of the growing season
+gs_duration_df <- tribble(
+  ~crop, ~tc,
+  "Rice", 4,
+  "Maize", 5,
+  "Potato", 6,
+  "Cassava", 9
+)
+ggplot() +
+  geom_ribbon(
+    data = df_irfs_lp_ci |> filter(horizon <= !!nb_h),
+    mapping = aes(
+      x = horizon,
+      ymin = lower, ymax = upper, fill = level),
+    alpha = .2
+  ) +
+  geom_line(
+    data = df_irfs_lp |> filter(horizon <= !!nb_h),
+    mapping = aes(x = horizon, y = shock_1_sd),
+    colour = "#0072B2") +
+  geom_hline(yintercept = 0, colour = "gray40") +
+  geom_vline(
+    data = gs_duration_df, 
+    mapping = aes(xintercept = tc),
+    colour = "#D55E00", linetype = "dashed") +
+  ggh4x::facet_grid2(
+    name~crop, scales = "free_y", 
+    axes = "all",
+    independent = "y", switch = "y") +
+  scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68%" = "gray10", "95%" = "gray60")
+  ) +
+  theme_paper() +
+  theme(strip.placement = "outside")
+```
+
+
+
+### Exporting results {#sec-lp-linear-export-piscop}
+
+Let us save the results for later use.
+```{r, eval=FALSE}
+save(df_irfs_lp, df_irfs_lp_ci, file = "../R/output/df_irfs_lp_piscop.rda")
+save(resul_lp, file = "../R/output/resul_lp_piscop.rda")
+```
+
+We also save the dataset in a CSV format:
+```{r, eval=FALSE}
+df |> 
+  select(
+    date, region, region_id, product, product_eng, 
+    y_new, y_new_normalized,
+    temp_max_dev, precip_piscop_sum_dev,
+    rer_hp, r_hp, pi, ind_prod, ONI, price_int_inf
+    ) |> 
+  write_csv("../data/output/data_lp.csv")
+```
+

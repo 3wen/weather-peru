@@ -1,0 +1,132 @@
+# Introduction {.unnumbered}
+
+<!-- quarto add quarto-ext/fontawesome -->
+
+This ebook is the online supplementary materials for the article titled "_The Dynamic Effects of Weather Shocks on Agricultural Production_".
+
+The document is divided in five parts. 
+
+1. The **first part** provides the codes for downloading the agricultural production data, weather data, and additional data such as map backgrounds ([Chapters -@sec-weather-data] to [-@sec-other-data]). It concludes with the formatting and presentation of the dataset used in the subsequent parts ([Chapters -@sec-merge] and [-@sec-desc-stat]).
+2. The **second part** provides the codes for replicating the local projections ([Chapters -@sec-lp-piscop], [-@sec-lp-quadratic-piscop], and [-@sec-lp-states-piscop]), and the codes for replicating the results of the vector autoregressive model ([Chapter -@sec-var-piscop]).
+3. The **third part** provides an analysis to examine the impacts of using quarterly data instead of monthly data in the local projections ([Chapters -@sec-merge-quarter] and [-@sec-lp-quarter]).
+4. The **fourth part** provides a robustness check when using an alternative dataset for precipitation data, to study the response of agricultural production following a weather shock ([Chapter -@sec-lp-chirps]) and aggregate fluctuations ([Chapter -@sec-var-chirps]).
+5. The **fifth part** considers alternative definitions of weather shocks, to account for positive vs. negative surprise shocks ([Chapter -@sec-lp-posvsnegsurprise]). It also considers removing the last year from the data ([Chapter -@sec-lp-until2014]).
+
+::: {.callout-warning}
+
+### Warning
+
+The following ebook does not provide interpretations of the results. The interpretations are given in the article.
+
+:::
+
+
+
+::: {.callout-tip}
+
+### Estimation of the models only
+
+The second, third and fourth parts, where we provide the scripts to run the estimations, can be evaluated without completing the first one, as the final dataset obtained at the end of the first part, `dataset_2001_2015.rda`, is provided in the `data/output` folder (see below).
+
+:::
+
+
+## Replication Codes
+
+The codes presented in this ebook are available in the `R` folder. The functions that are sourced within those R scripts are defined the `weatherperu/R` folder (the `weatherperu` is our R package that helps us create and document the functions used to perform the analysis). This package does not need to be _installed_.
+
+- **Full version**: Replication codes + ebook + data (408Mo):  
+  <a href="./replication_codes_and_data.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Full zip archive (412Mo)</a>
+- **Light version**: Replication codes only (no data) (31.5Mo):  
+  <a href="./replication_codes.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">{{< fa brands r-project >}} codes (184ko)</a>
+- **Light version of the datasets**: 
+  <a href="./data_light.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Zip archive with light datasets (1.2Mo)</a>
+
+The following tree architecture is adopted:
+
+```
+Supplementary-materials
+├ ── README.txt
+├ ── Replication_book
+├ ── R
+│   └── data-weather.R
+│   └── data-agriculture-calendar.R
+│   └── data-agriculture.R
+│   └── data-macro.R
+│   └── data-other.R
+│   └── data-merge.R
+│   └── data-desc-stats.R
+│   └── local_proj_linear.R
+│   └── local_proj_quadratic.R
+│   └── local_proj_seasonal.R
+│   └── aggregate_fluctuations.R
+│   └── robustness-data-merge-quarter.R
+│   └── robustness-data-merge-annual.R
+│   └── robustness-local_proj_linear_quarter.R
+│   └── robustness-local_proj_linear_annual.R
+│   └── robustness-local_proj_comparison.R
+│   └── robustness-local_proj_linear_chirps.R
+│   └── robustness-aggregate_fluctuations_chirps.R
+│   └── robustness-local_proj_linear_surprise.R
+│   └── robustness-local_proj_until_2014.R
+├ ── data
+│   └── output
+|   |   └── dataset_2001_2015.rda
+│   └── raw
+├ ── weatherperu
+│   └── R
+```
+
+- `Replication_book`: folder that contains the codes to produce this ebook.
+- `R`: folder that contains the R scripts that allow to create the datasets and estimate the models.
+- `data`: folder that contains data (raw data in `raw` and processed data on `output`).
+- `weatherperu`: useful functions used in the R codes, made available as an R package (the functions are defined in the `R` subfolder).
+
+Note that if you run the codes, the estimation results will be saved in the `R/output/` folder.
+
+::: {.callout-note}
+
+### Raw Data
+
+To be able to reproduce the results from the article, we provide all the R codes. The user is kindly invited to download the raw data themselves.
+
+:::
+
+The codes are divided in three parts. The first part contains the code used to obtain the dataset used in the estimations. The second part contains the codes that allow to estimate the local projections and the results obtained with the vector autoregressive model. The third part explores how are the results from the local projections impacted when using quarterly data instead of monthly data.
+
+
+
+1. **Preparing the data**
+
+    - `data-weather.R`: Weather data ([Chapter -@sec-weather-data])
+    - `data-agriculture-calendar.R`: Agricultural calendars ([Section -@sec-agricultural-calendar])
+    - `data-agriculture.R`: Agricultural production ([Chapter @sec-ag-data])
+    - `data-macro.R`: Macroeconomic Data ([Chapter -@sec-data-macro])
+    - `data-other.R`: Natural regions, ENSO ([Chapter -@sec-other-data])
+    - `data-merge.R`: Merging the datasets to produce the one used in the local projections estimations ([Chapter -@sec-merge])
+    - `data-desc_stats.R`: Descriptive statistics ([Chapter -@sec-desc-stat]).
+
+2. **Replication of the estimations**
+
+    - `local_proj_linear.R`: The Dynamic Effects of Weather Shocks ([Chapter -@sec-lp-piscop])
+    - `local_proj_quadratic.R`: Quadratic Terms ([Chapter -@sec-lp-quadratic-piscop])
+    - `local_proj_seasonal.R`: Time-varying exposure to weather shocks ([Chapter -@sec-lp-states-piscop])
+    - `aggregate_fluctuations.R`: From Regional to Aggregate Fluctuations ([Chapter -@sec-var-piscop]).
+
+3. **Robustness checks: Data Frequency**
+
+    - `robustness-data-merge-quarter.R`: Merging the datasets to produce the one used in the local projections estimations using quarterly data ([Chapter -@sec-merge-quarter])
+    - `robustness-data-merge-annual.R`: Merging the datasets to produce the one used in the local projections estimations using annual data ([Chapter -@sec-merge-annual])
+    - `robustness-local_proj_linear_quarter.R`: Agricultural production response to a weather shock (using Local Projections) with quarterly data ([Chapter -@sec-lp-quarter])
+    - `robustness-local_proj_linear_annual.R`: Agricultural production response to a weather shock (using Local Projections) with annual data ([Chapter -@sec-lp-quarter])
+    - `robustness-local_projections-comparisons.R`: Comparison of agricultural response to a weather shock (using Local Projections) according to the data frequency of the agricultural production.
+    
+4. **Robustness checks: CHIRPS Data**
+
+    - `robustness-local_proj_linear-chirps.R`: Agricultural production response to a weather shock (using Local Projections) with CHIRPS data ([Chapter -@sec-lp-chirps])
+    - `robustness-aggregate_fluctuations-chirps.R`: Aggregate fluctuations using CHIRPS data ([Chapter -@sec-var-chirps]).
+    
+5. **Robustness Check: Other**
+
+    - `robustness-local_proj_linear_surprise.R`: Agricultural production response to a **surprise** weather shock (using Local Projections) with monthly data ([Chapter -@sec-lp-posvsnegsurprise]).
+    - `robustness-local_proj_until_2014.R`: Agricultural production response to a weather shock (using Local Projections) excluding the last year of data ([Chapter -@sec-lp-until2014]).

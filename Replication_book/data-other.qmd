@@ -1,0 +1,259 @@
+# Other Data {#sec-other-data}
+
+:::{.callout-note}
+
+## Objectives
+
+In this chapter, we import other data:
+
+- Region types (coast, forest, mountains)
+- ENSO variations
+
+:::
+
+## Natural Regions {#sec-other-natural-regions}
+
+We calculate the share of each type of natural region using data from the Geo GPS Peru website: <https://www.geogpsperu.com/2019/11/mapa-de-regiones-naturales-costa-sierra.html>
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(rmapshaper)
+library(raster)
+library(stars)
+library(readxl)
+# install.packages("lwgeom")
+```
+
+### Import Data
+
+We first import the Peruvian map:
+```{r}
+sf::sf_use_s2(FALSE)
+
+# Map of the administrative regions 
+map_peru <- sf::st_read("../data/raw/shapefile_peru/departamentos/", quiet = T)
+
+map_peru <-
+  rmapshaper::ms_simplify(input = as(map_peru, 'Spatial')) |>
+  st_as_sf()
+```
+
+Then, we load the map with the definition of the natural regions:
+```{r, warning=FALSE, message=FALSE}
+# Map of the natural regions 
+map_regiones_naturales <-  sf::st_read(
+  str_c("../data/raw/shapefile_peru/regiones_naturales/",
+        "region natural_geogpsperu_JuanPabloSuyoPomalia.geojson"
+  ),
+  quiet = T
+)
+```
+
+As the file contains a lot of unecessary details, we simplify the polygons:
+```{r}
+map_regiones_naturales <-
+  rmapshaper::ms_simplify(input = as(map_regiones_naturales, 'Spatial')) |>
+  st_as_sf()
+```
+
+Let us plot the map:
+```{r}
+#| fig-cap: "Map with the Natual Regions (Source: Geo GPS Peru)"
+#| label: fig-natural-regions-geo-gps
+ggplot(data = map_regiones_naturales) +
+  geom_sf(mapping = aes(fill = Nm_RegNat))
+```
+
+### Share of Natural Region in Each Administrative Region
+
+We calculate the share of each type of natural region in each administrative region.
+```{r}
+natural_region_dep <- vector(mode = "list", length = nrow(map_peru))
+```
+
+Looping over each administrative region:
+```{r, message=FALSE, warning=FALSE}
+for (i in 1:nrow(map_peru)) {
+  natural_region_dep_i <- 
+    st_intersection(map_peru[i,],  map_regiones_naturales) |> 
+    dplyr::mutate(area_cell_intersect = st_area(geometry)) |> 
+    mutate(area_cell_sqkm = units::drop_units(area_cell_intersect)*10^-6) |> 
+    mutate(
+      area = sum(area_cell_sqkm),
+      area_pct = area_cell_sqkm/area) |> 
+    dplyr::select(region = DEPARTAMEN, natural_reg = Nm_RegNat, area_pct) |> 
+    as_tibble() |> 
+    dplyr::select(-geometry)
+  
+  natural_region_dep[[i]] <- natural_region_dep_i
+}
+```
+
+Binding the results:
+```{r}
+natural_region_dep <- 
+  dplyr::bind_rows(natural_region_dep) |> 
+  dplyr::mutate(natural_reg = str_c("share_", str_to_lower(natural_reg))) |> 
+  tidyr::pivot_wider(
+    names_from = natural_reg, 
+    values_from = area_pct, 
+    values_fill = 0
+  )
+
+natural_region_dep |>
+  dplyr::mutate(test = share_sierra + share_selva + share_costa)
+```
+
+We add labels to the columns:
+```{r, eval=FALSE}
+natural_region_dep <- 
+  natural_region_dep |> 
+  labelled::set_variable_labels(
+    region = "Name of the region",
+    share_costa = "Share of coastal areas in the region",
+    share_selva = "Share of forest areas in the region",
+    share_sierra = "Share of highland areas in the region"
+  )
+```
+
+
+And the results can be saved:
+```{r, eval=FALSE}
+save(natural_region_dep, file =  "../data/output/natural_region_dep.rda")
+```
+
+Let us plot the share of each type of natural regions in each administrative region on a map. We first prepare the data.
+```{r}
+map_peru_nat_regions <- NULL
+# nat_level <- "share_sierra"
+for (nat_level in c("share_sierra", "share_selva", "share_costa")) {
+  map_peru_nat_reg_tmp <- 
+    map_peru |> 
+    dplyr::left_join(
+      natural_region_dep |> 
+        tidyr::pivot_longer(cols = c(share_sierra, share_selva, share_costa),
+                            names_to = "natural_region", values_to = "share_natural") |> 
+        filter(natural_region == !!nat_level),
+      by = c("DEPARTAMEN" = "region")
+    )
+  map_peru_nat_regions <- dplyr::bind_rows(map_peru_nat_regions, map_peru_nat_reg_tmp)
+}
+```
+
+Then, we can create the maps.
+```{r}
+#| fig-cap: "Share of each type of natural regions"
+#| label: fig-map-share-natural-region
+source("../weatherperu/R/utils.R")
+p <- 
+  ggplot(
+    data = map_peru_nat_regions |> 
+      mutate(
+        natural_region = factor(
+          natural_region,
+          levels = c("share_costa", "share_selva", "share_sierra"),
+          labels = c("Coast", "Forest", "Highlands")
+        )
+      )
+    ) +
+  geom_sf(mapping = aes(fill = share_natural, group = DEPARTAMEN)) +
+  scale_fill_gradient2(
+    "Share of\neach natural\ntype", 
+    low = "#FFC107", mid = "white", high = "gray15",
+    breaks = .25*0:4,
+    labels = scales::percent(.25*0:4)
+  ) +
+  facet_wrap(~natural_region) +
+  theme_map_paper()
+
+p
+```
+
+## Content of the dataset
+
+| Variable name | Type | Description |
+| :------------ | ---- | ----------- |
+| `region` | character | Administrative Name of the Region |
+| `share_sierra` | numeric | Share of highlands |
+| `share_selva` | numeric | Share of forest |
+| `share_costa` | numeric | Share of coast |
+
+: Variables in the `natural_region_dep` file {#tbl-desc-variables-df-natural-region-dep}
+
+
+
+# El Niño–Southern Oscillation {#sec-data-enso}
+
+Peru is exposed to the El Niño Southern Oscillation (ENSO) phenomenon. This phenomenon is due to irregular cyclical variations in sea surface temperatures and air pressure of the Pacific Ocean. The ENSO phenomenon is composed of two main phases: the warming phase El Niño, characterized by warmer ocean temperatures in the tropical western Pacific, and the cooling phase La Niña, with a cooling of the ocean surface.
+
+The ENSO variations are classified using the Oceanic Niño Index, which computes a three-months average of the sea surface temperature anomalies in the central and eastern tropical Pacific Ocean. We collect this index from the [Golden Gate Weather Service](https://ggweather.com/enso/oni.htm). An El Niño (or La Niña) event is defined by a five consecutive three-months periods with an index above 0.5 (or below -0.5 for a La Niña event).
+
+```{r}
+ONI_temp <- read_excel(
+  path = "../data/raw/Weather/ONI.xlsx", 
+  sheet = "ONI", 
+  col_types = "text") |> 
+  pivot_longer(cols = -c(Year), names_to = "month") |> 
+  mutate(
+    elnino = ifelse(as.numeric(value) >  0.49, yes = 1, no = 0),
+    lanina = ifelse(as.numeric(value) < -0.49, yes = 1, no = 0)) |> 
+  filter(Year %in% c(2000: 2016)) |> 
+  mutate(
+    date = lubridate::ymd(str_c(Year,  "-", month, "-01")), 
+    State = case_when(
+      elnino == 1 ~ "El Niño", 
+      lanina == 1 ~ "La Niña", 
+      (elnino == 0 & lanina == 0) ~ "Normal",
+      TRUE ~ "NA"
+    )) |> 
+  mutate(
+    date_start = ifelse(State != lag(State), yes = 1, no = 0), 
+    date_end   = ifelse(State != lead(State), yes = 1, no = 0)) |> 
+  rename(ONI = value) |> 
+  mutate(ONI = as.numeric(ONI))
+
+ONI_temp$date_start[1] <- 1
+ONI_temp$date_end[nrow(ONI_temp)] <- 1
+```
+
+We add labels to the columns:
+```{r, eval=FALSE}
+ONI_temp <- 
+  ONI_temp |> 
+  labelled::set_variable_labels(
+    Year = "Year",
+    month = "Month",
+    ONI = "Oceanic Niño Index",
+    elnino = "Is El-Niño Event",
+    lanina = "Is La-Niña Event",
+    date = "Date",
+    State = "ENSO State",
+    date_start = "Is event start month",
+    date_end = "Is event end month"
+  )
+```
+
+
+
+Let us save this data for later use:
+```{r, eval=FALSE}
+save(ONI_temp, file = "../data/output/weather/ONI_temp.rda")
+```
+
+## Content of the dataset
+
+| Variable name | Type | Description |
+| :------------ | ---- | ----------- |
+| `Year` | character | Year (YYYY) |
+| `month` | character | Month (MM) |
+| `ONI` | numeric | Oceanic Niño Index |
+| `elnino` | numeric | `1` if El-Niño event, `0` otherwise |
+| `lanina` | numeric | `1` if La-Niña event, `0` otherwise |
+| `date` | numeric | Date of the beginning of the month (YYYY-MM-DD) |
+| `State` | numeric | State: `"La Niña"`{.R}, `"Normal"`{.R}, or  `"El Niño"`{.R} |
+| `date_start` | numeric | `1` if current date corresponds to the begining of one of the three states, `0` otherwise |
+| `date_end` | numeric | `1` if current date corresponds to the end of one of the three states, `0` otherwise  |
+
+: Variables in the `ONI_temp` file {#tbl-desc-variables-df-ONI-temp}

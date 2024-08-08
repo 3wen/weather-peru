@@ -1,0 +1,410 @@
+# Macroeconomic Data {#sec-data-macro}
+
+:::{.callout-note}
+
+## Objectives
+
+In this chapter, we present the sources and data formatting of the macroeconomic variables.
+
+:::
+
+We use data from the Central Reserve Bank of Peru. The Consumer Price Index (CPI) data are obtained using the token _PN01270PM_, the Food Consumer Price Index (CPIA) data with token _PN01336PM_, the Real Exchange Rate (RER) data with token _PN01259PM_, Exports data with token _PN01461BM_, the GDP data with token _PN01773AM_, the agricultural GDP data with token _PN01755AM_, the interbank interest rate data with token _PN07819NM_, and _PN02079AM_ for the manufacturing production.
+
+## Load Data
+
+We have downloaded these series from the the [Banco Central De Reserva Del Perú website](https://estadisticas.bcrp.gob.pe/estadisticas/series/).
+```{r}
+library(tidyverse)
+library(labelled)
+peru_macro <- 
+  readxl::read_excel(
+  path = "../data/raw/Macro/data_macro_peru.xlsx",
+  skip = 1,
+  na = "n.d."
+) |> 
+  mutate(
+    month = case_when(
+      str_detect(date, "^Ene") ~ 1,
+      str_detect(date, "^Feb") ~ 2,
+      str_detect(date, "^Mar") ~ 3,
+      str_detect(date, "^Abr") ~ 4,
+      str_detect(date, "^May") ~ 5,
+      str_detect(date, "^Jun") ~ 6,
+      str_detect(date, "^Jul") ~ 7,
+      str_detect(date, "^Ago") ~ 8,
+      str_detect(date, "^Sep") ~ 9,
+      str_detect(date, "^Oct") ~ 10,
+      str_detect(date, "^Nov") ~ 11,
+      str_detect(date, "^Dic") ~ 12
+    ),
+    year = as.numeric(str_sub(date, -2)) + 2000
+  ) |> 
+  mutate(date = lubridate::ym(str_c(year, month, sep = "-")))
+```
+
+Let us rename the columns :
+```{r}
+peru_macro <- 
+  peru_macro |> 
+  select(
+    date,
+    yy_raw  = PN01773AM, # GDP
+    rer_raw = PN01259PM, # Real Exchange Rate
+    x_raw   = PN01461BM, # Exports
+    r_raw   = PN07819NM, # Interest rate
+    pi_raw  = PN01270PM, # CPI
+    pia_raw = PN01336PM, # CPI: food
+    ya_raw  = PN01755AM, # Agricultural GDP
+    ind_prod_raw = PN02079AM # Manufacturing production
+  )
+```
+
+
+## Helper Functions
+
+In order to address any underlying trends in the GDP data, we express this variable in percentage deviations from the Hodrick-Prescott trend. To that end, we define a helper that returns the estimated trend:
+```{r}
+#' Applies HP filter for monthly data and returns the trend component
+#' 
+#' @param x vector of monthly observations
+#' @param freq smoothing parameter (\lambda)
+hp_filter_trend <- function(x, freq = 14400) {
+  res_hp_filter <- mFilter::hpfilter(
+    x,
+    freq = 14400, 
+    type = "lambda", 
+    drift = FALSE
+  )
+  as.vector(res_hp_filter$trend)
+}
+```
+
+
+Furthermore, to eliminate any seasonal components present in the data, we employ the X13 method developed by the Census Bureau. This method enables us to remove seasonal variations and isolate the underlying patterns and dynamics of the variables
+
+```{r}
+#' Removes the seasonality of a vector of monthly values
+#'
+#' @param x vector of numerical values
+#' @param start_date start date of the values
+#' @param remove_trend should the estimated trend be removed? Default to ``FALSE
+adj_season_X13 <- function(x,
+                           start_date,
+                           remove_trend = FALSE) {
+  x_ts <- ts(x, start = c(year(start_date), month(start_date)), freq = 12)
+  # Seasonal Adjustment with X-13ARIMA-SEATS
+  x_ts_season <- seasonal::seas(
+    x_ts, estimate.maxiter=10000,
+    arima.model = "(0 1 1)(0 1 1)",
+    x11 = ""
+  )
+  x_ts_season_df <- timetk::tk_tbl(x_ts_season$data) |>
+    mutate(date = lubridate::my(index))
+
+  df_resul <- tibble(
+    date = seq(start_date, last(x_ts_season_df$date), by = "month")
+  ) |>
+    left_join(x_ts_season_df, by = "date") |>
+    mutate(val = seasonaladj)
+
+  if (remove_trend) {
+    df_resul <- df_resul |>
+      mutate(val = seasonaladj - trend)
+  }
+
+  df_resul |> pull(val)
+}
+```
+
+
+::: {.callout-note}
+
+The `hp_filter_trend()`{.R} and the `adj_season_X13()`{.R} functions are defined in the `../weatherperu/R/detrending.R` script.
+
+:::
+
+## Data Pre-Processing
+
+For GDP:
+```{r}
+peru_gdp <- 
+  peru_macro |> 
+  select(date, yy_raw) |> 
+  filter(date >= "2003-01-01") |> 
+  mutate(
+    # Remove seasonality
+    yy_sa  = adj_season_X13(yy_raw, ymd("2003-01-01")),
+    # Extract trend
+    yy_trend = hp_filter_trend(yy_sa, freq = 14400),
+    # Percentage dev. from trend
+    y = 100 * log(yy_raw / yy_trend)
+  )
+```
+
+
+For agricultural GDP:
+```{r}
+peru_ya <- 
+  peru_macro |> 
+  select(date, ya_raw) |> 
+  filter(date >= "2003-01-01") |> 
+  mutate(
+    # Remove seasonality
+    ya_sa  = adj_season_X13(ya_raw, ymd("2003-01-01")),
+    # Extract trend
+    ya_trend = hp_filter_trend(ya_sa, freq = 14400),
+    # Percentage dev. from trend
+    ya = 100 * log(ya_raw / ya_trend)
+  )
+```
+
+
+For Real Exchange Rate:
+```{r}
+peru_rer <- 
+  peru_macro |> 
+  select(date, rer_raw) |> 
+  filter(date >= "2001-01-01") |> 
+  mutate(
+    # Remove seasonality
+    rer_sa = adj_season_X13(rer_raw, ymd("2001-01-01")),
+    rer = rer_sa / 100
+  ) |> 
+  mutate(
+    rer_hp_trend = hp_filter_trend(rer_raw, freq = 14400),
+    rer_hp = rer_raw - rer_hp_trend,
+    rer_trend = hp_filter_trend(rer_sa, freq = 14400),
+    rer_dt_sa = log(rer_sa / rer_trend)
+  ) |> 
+  select(-rer_hp_trend, -rer_trend, -rer_sa)
+```
+
+For Exports:
+```{r}
+peru_x <- 
+  peru_macro |> 
+  select(date, x_raw) |> 
+  filter(date >= "2001-01-01") |> 
+  mutate(
+    # Remove seasonality
+    x = adj_season_X13(100 + x_raw, ymd("2000-12-01")),
+    x = x / 100
+  )
+```
+
+
+For the Interest rate:
+```{r}
+peru_r <- 
+  peru_macro |> 
+  select(date, r_raw) |> 
+  filter(date >= "2001-01-01") |> 
+  rename(r = r_raw) |> 
+  mutate(
+    r_hp_trend = hp_filter_trend(r, freq = 14400),
+    r_hp = r - r_hp_trend
+  ) |> 
+  select(-r_hp_trend)
+```
+
+For the Consumer Price Index:
+```{r}
+peru_cpi <- 
+  peru_macro |> 
+  select(date, pi_raw) |> 
+  mutate(
+    # Remove seasonality
+    pi_sa = adj_season_X13(pi_raw, ymd("2000-12-01")),
+    # Log difference
+    pi = c(NA, 100 * diff(log(pi_sa)))
+  )
+```
+
+For the Food Consumer Price Index:
+```{r}
+peru_cpia <- 
+  peru_macro |> 
+  select(date, pia_raw) |> 
+  mutate(
+    # Remove seasonality
+    pia_sa = adj_season_X13(pia_raw, ymd("2000-12-01")),
+    # Log difference
+    pia = c(NA, 100 * diff(log(pia_sa)))
+  )
+```
+
+
+
+Manufacturing production
+```{r}
+peru_ind_prod <- 
+  peru_macro |> 
+  select(date, ind_prod_raw) |> 
+  filter(date >= "2001-01-01") |> 
+  mutate(
+    # Remove seasonality
+    ind_prod_sa  = adj_season_X13(ind_prod_raw, ymd("2001-01-01")),
+    # Extract trend
+    ind_prod_trend = hp_filter_trend(ind_prod_sa, freq = 14400),
+    # Percentage dev. from trend
+    ind_prod = 100 * log(ind_prod_raw / ind_prod_trend)
+  )
+```
+
+## International Commodity prices {#sec-data-macro-commodity}
+
+For the international commodity prices, we will not include those in the final macro data, as they are given depending on the crop. We will produce a separate file. We have downloaded these series [from the IMF Primary Commodity Price System website](https://data.imf.org/?sk=471dddf8-d8a7-499a-81ba-5b332c01f8b9).
+
+```{r}
+library(readxl)
+int_prices <- read_excel(
+  path = "../data/raw/Macro/IMF_DATA.xls",
+  sheet = "SELECTED",
+  col_types = "text") |> 
+  mutate(date = lubridate::ymd(str_c(YEAR,  "-", MONTH, "-01"))) |> 
+  rename(
+    "FPI"           = "FPI_PFOOD", 
+    "FERTILIZER"    = "FERTILIZER_PFERT",	
+    "IndexOIL"      = "IndexOIL_POILAPSP",
+    "PriceOIL"      = "PriceOIL_POILAPSP", 
+    "CORN"          = "CORN_PMAIZMT", 
+    "ARROZ CÁSCARA" = "RICE_PRICENPQ", 
+    "TRIGO"         = "WHEAT_PWHEAMT"
+  ) |> 
+  mutate(CORN2 = CORN, 
+         FPI2 = FPI) |> 
+  select(-c(MONTH, YEAR, CPI_Peru_IMF, CPI_US_IMF, IndexOIL, PriceOIL)) |> 
+  pivot_longer(cols = !date, names_to = "product", values_to = "price_int") |> 
+  mutate(
+    product = case_when(
+      product == "FPI"  ~ "PAPA", 
+      product == "FPI2" ~ "YUCA", 
+      product == "CORN" ~ "MAÍZ AMILÁCEO", 
+      product == "CORN2"~ "MAÍZ AMARILLO DURO", 
+      TRUE ~ product
+    ), 
+    product_eng = case_when(
+      product == "PAPA" ~ "Potato",
+      product == "YUCA" ~ "Cassava",
+      product == "ARROZ CÁSCARA" ~ "Rice",
+      product == "MAÍZ AMARILLO DURO" ~ "Dent corn"
+    ),
+    price_int = as.numeric(price_int)
+  ) |> 
+  arrange(product, date) |> 
+  group_by(product) |> 
+  mutate(price_int_inf = price_int / lag(price_int) - 1) |> 
+  ungroup() |> 
+  filter(! year(date) == 2000)
+```
+
+
+Let us add labels to the columns:
+```{r}
+int_prices <- 
+  int_prices |> 
+  labelled::set_variable_labels(
+    date = "Date",
+    price_int = "International commodity price",
+    price_int_inf = "Int. commodity inflation rate"
+  )
+```
+
+And save the resulting table:
+```{r}
+save(int_prices, file = "../data/output/macro/df_int_prices.rda")
+```
+
+## Merging the Data
+
+The sample period for our analysis covers the time span from January 2003 (2003M1) to December 2015 (2015M12).
+
+```{r}
+df_macro <- 
+  peru_gdp |> 
+  select(date, y) |> 
+  full_join(
+    peru_ya |> select(date, ya),
+    by = "date"
+  ) |> 
+  full_join(
+    peru_rer |> select(date, rer, rer_hp, rer_dt_sa),
+    by = "date"
+  ) |> 
+  full_join(
+    peru_r |> select(date, r, r_hp),
+    by = "date"
+  ) |> 
+  full_join(
+    peru_x |> select(date, x),
+    by = "date"
+  ) |> 
+  full_join(
+    peru_cpi |> select(date, pi),
+    by = "date"
+  ) |>
+  full_join(
+    peru_cpia |> select(date, pia),
+    by = "date"
+  ) |>
+  full_join(
+    peru_ind_prod |> select(date, ind_prod),
+    by = "date"
+  ) |> 
+  arrange(date) |> 
+  filter(date >= ymd("2001-01-01"))
+```
+
+
+Let us add labels to the columns:
+```{r}
+df_macro <- 
+  df_macro |> 
+  labelled::set_variable_labels(
+    date = "Date",
+    rer_dt_sa = "Real exchange rate",
+    rer_hp = "Real exchange rate",
+    x  = "Exports",
+    pi = "Inflation rate (pp)",
+    pia = "Food inflation rate (pp)",
+    y = "GDP (pp)",
+    ya = "Agricultural GDP (pp)",
+    r = "Interest rate (pp)",
+    r_hp = "Interest rate (pp)",
+    ind_prod = "Manufacturing Prod. (pp)"
+  )
+```
+
+And lastly, we need to save the data for further use (especially in [Chapter -@sec-var-piscop]).
+```{r, eval=FALSE}
+save(df_macro, file = "../data/output/macro/df_macro.rda")
+```
+
+
+## Content of the dataset
+
+| Variable name | Type | Description |
+| :------------ | ---- | ----------- |
+| `date` | date | Date of the observation (YYYY-MM-DD) |
+| `y` | numeric | GDP in percentage point, percentage deviation from trend, detrended and seasonally adjusted |
+| `ya` | numeric | Agricultural GDP in percentage point, percentage deviation from trend, detrended and seasonally adjusted |
+| `rer_hp` | numeric | Real exchange rate, detrended using HP filter |
+| `rer_dt_sa` | numeric | Real exchange rate, detrended and seasonally adjusted |
+| `x` | numeric | Exports, seasonally adjusted |
+| `r` | numeric | Interest rate, in percentage point, detrended |
+| `pi` | numeric | Inflation rate, in percentage point |
+| `pia` | numeric | Food inflation rate, in percentage point, seasonally adjusted |
+| `ind_prod` | numeric | Manufacturing Production, in percentage point, percentage deviation from trend, detrended and seasonally adjusted |
+
+: Variables in the `df_macro.rda` file {#tbl-desc-variables-df-macro}
+
+| Variable name | Type | Description |
+| :------------ | ---- | ----------- |
+| `date` | date | Date of the observation (YYYY-MM-DD) |
+| `product` | character | Crop name in Spanish |
+| `price_int` | numeric | International commodity prices |
+| `price_int_inf` | numeric | Growth rate of international commodity prices |
+
+: Variables in the `int_prices.rda` file {#tbl-desc-variables-df-macro-int-prices}
+
+

@@ -1,0 +1,69 @@
+project:
+  type: book
+  output-dir: ../docs
+
+book:
+  title: "The Dynamic Effects of Weather Shocks on Agricultural Production"
+  date: "07/16/2024"
+  author:
+  - name: Cédric Crofils
+    affiliations:
+      - name: LEDa, Paris-Dauphine & PSL Universities
+  - name: Ewen Gallic
+    orcid: 0000-0003-3740-2620
+    affiliations:
+      - name: Aix-Marseille School of Economics, Aix-Marseille Université
+  - name: Gauthier Vermandel
+    orcid: 0000-0001-6241-5875
+    affiliations:
+      - name: CMAP, Ecole polytechnique, Institut Polytechnique de Paris
+  chapters:
+    - index.qmd
+    - part: "I. Data"
+      chapters:
+      - data-weather.qmd
+      - data-agriculture.qmd
+      - data-macro.qmd
+      - data-other.qmd
+      - data-merge.qmd
+      - data-desc-stats.qmd
+    - part: "II. Local Projections"
+      chapters:
+      - local_projections_piscop.qmd
+      - local_projections_quadratic_piscop.qmd
+      - local_projections_seasonal_piscop.qmd
+    - part: Macroeconomic Impacts
+      chapters:
+      - ag-fluctuations_piscop.qmd
+    - part: "III. Robustness Check: Data Frequency"
+      chapters:
+      - robustness-data-merge-quarter.qmd
+      - robustness-data-merge-annual.qmd
+      - robustness-local_projections-quarter.qmd
+      - robustness-local_projections-annual.qmd
+      - robustness-local_projections-comparison.qmd
+    - part: "IV. Robustness Check: CHIRPS Data"
+      chapters:
+      - robustness-local_projections_chirps.qmd
+      - robustness-ag-fluctuations_chirps.qmd
+    - part: "V. Robustness Check: Other"
+      chapters:
+      - robustness-local_projections_posvsneg.qmd
+      - robustness-local_projections_until_2014.qmd
+    - references.qmd
+  navbar:
+    right:
+      - icon: github
+        href: https://github.com/3wen/weather-peru
+        aria-label: GitHub
+
+bibliography: biblio.bib
+
+format:
+  html:
+    theme: cosmo
+    html-math-method: mathjax
+    include-in-header:
+    - file: mathjax-color.html
+editor: source
+

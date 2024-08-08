@@ -1,0 +1,3932 @@
+# Weather Data {#sec-weather-data}
+
+
+:::{.callout-note}
+
+## Objectives
+
+This chapter provides the R codes used to get weather data from Peru. The period of interest here is from 2005 to 2019 (although the agricultural data will not run until 2019).
+
+In this chapter, we will cover the following steps:
+
+1.    **Obtaining a map of Peru**: we will explore how to retrieve a map of Peru, providing a visual representation of the geographical area of interest.
+
+2.    **Retrieving land use data from [Copernicus](https://land.copernicus.eu/global/products/lc)**: this data will provide valuable information about the various land cover types present in Peru.
+
+3.    **Importing Weather Data from Gridded data**: we will show how to import temperature and precipitation data from NetCDF files.
+
+4.    **Create Weather/Climate metrics at the grid cell level**.
+
+5.    **Aggregate metrics to monthly/quarterly/annual regional level**: the metrics defined at the daily grid-cell level will be spatially and temporally aggregated.
+
+:::
+
+A few packages are needed:
+
+```{r}
+library(tidyverse)
+# library(rnoaa)
+library(lubridate)
+library(sf)
+library(rmapshaper)
+library(raster)
+library(stars)
+```
+
+
+## Maps {#sec-peru-map}
+
+Two shapefiles were downloaded from [GEO GPS PERÙ](https://www.geogpsperu.com/2014/03/base-de-datos-peru-shapefile-shp-minam.html):
+
+-   the [departmental boundaries](https://www.geogpsperu.com/2018/02/limite-departamental-politico-shapefile.html)
+-   [a grid map of the national map](https://www.geogpsperu.com/2012/08/cuadro-de-empalme-de-la-cartografia.html).
+
+Let us first load the departemental boundaries, using `st_read()` from {`sf`}.
+
+```{r}
+map_peru <- sf::st_read("../data/raw/shapefile_peru/departamentos/", quiet = T)
+```
+
+This map is really heavy. Let us simplify the polygons.
+
+```{r}
+map_peru <-
+  rmapshaper::ms_simplify(input = as(map_peru, 'Spatial')) |>
+  st_as_sf()
+```
+
+The map can easily be plotted:
+
+```{r}
+#| fig-cap: Boundaries of regions in Peru
+#| label: fig-regions-map-peru
+ggplot(data = map_peru) +
+  geom_sf()
+```
+
+Now, let us load the grid covering Peru, once again using `st_read()`:
+
+```{r}
+map_peru_grid <- sf::st_read(
+  str_c(
+    "../data/raw/shapefile_peru/grid/",
+    "cuadro de empalme oficial 100k ign peru geogpsperu/"
+    ),
+  quiet = TRUE
+)
+```
+
+Here is what it looks like:
+
+```{r}
+#| fig-cap: Grid for Peru
+#| label: fig-grid-peru
+ggplot(data = map_peru_grid) + 
+  geom_sf(fill = "#00B0CA", alpha = .2, colour = "white")
+```
+
+If we stack both the departmental boundaries and this grid:
+
+```{r}
+#| fig-cap: Regional boundaries in Peru with the grid
+#| label: fig-grid-peru-over-regions
+ggplot(data = map_peru_grid) + 
+  geom_sf(fill = "#00B0CA", alpha = .1, colour = "white") +
+  geom_sf(data = map_peru, fill = NA)
+```
+
+## Land Use {#sec-weather-land-use}
+
+Let us turn to the land cover data. We downloaded from [Copernicus](https://land.copernicus.eu/global/products/lc) the three land cover tiles intersecting Peru for 2015.
+
+The resolution is 100m. The raster is only made of 1 layer.
+
+The files are located in `../data/land_use/global_land_cover/`.
+
+```{r}
+base_location <- "../data/raw/land_use/global_land_cover/"
+end_location <- str_c(
+  "_PROBAV_LC100_global_v3.0.1_2015-",
+  "base_Crops-CoverFraction-layer_EPSG-4326.tif"
+)
+
+file <- str_c(base_location, "W080N00", end_location)
+file_2 <- str_c(base_location, "W100N00", end_location)
+file_3 <- str_c(base_location, "W080N20", end_location)
+```
+
+Using `raster()` from {`raster`}, these TIF files can be loaded into R.
+
+```{r, eval=FALSE}
+raster_land_1 <- raster(file)
+raster_land_2 <- raster(file_2)
+raster_land_3 <- raster(file_3)
+```
+
+These three tiles can be merged into a single one:
+
+```{r, eval=FALSE}
+raster_land <- raster::merge(raster_land_1, raster_land_2, raster_land_3)
+```
+
+We may only focus on the bounding box of Peru:
+
+```{r, eval=FALSE}
+raster_land_crop <- crop(raster_land, map_peru)
+```
+
+The resulting raster can be saved for later use.
+
+```{r, eval=FALSE}
+raster::writeRaster(
+  raster_land_crop,
+  filename = str_c(
+    "../data/output/land/global_land_cover/",
+    "raster_land_2015_cropped.tif"
+  )
+)
+```
+
+As this file is pretty large, we will only focus iteratively on fractions of it. To do so, it is easier to load the TIF file with `read_stars()` from {`stars`}.
+
+```{r}
+land <- stars::read_stars(
+  "../data/output/land/global_land_cover/raster_land_2015_cropped.tif"
+)
+```
+
+The numerical values associated with each tile of the TIF are the estimated fraction of the 100$m^2$ covered with agricultural land.
+
+```{r}
+names(land)[1] <- "percent_cropland"
+```
+
+Let us create a function that will consider the ith cell of Peru's grid (as obtained previously in the [Map section](#peru-map)). We extract the tiles from the land use raster intersecting with the cell, only keeping tiles within the boundaries. Then, we compute the fraction of cropland. The function returns a table with the value of i, the fraction of cropland, and the area of the cell within the boundaries (in squared metres).
+
+```{r}
+#' Get the cover fractions of cropland for the ith cell of Peru's grid
+#' 
+#' @param i index of the cell in `map_peru_grid`
+get_percent_cropland_cell <- function(i) {
+  # Cell from the grid of Peru
+  poly_cell <- map_peru_grid$geometry[i]
+  # Part of that cell within the boundaries
+  poly_cell_in_map <- st_intersection(poly_cell, map_peru)
+  poly_cell_in_map_area <- st_area(poly_cell_in_map) |> sum()
+  # Cropping land cover data
+  land_crop_try <- try(land_crop <- st_crop(land, poly_cell) |> st_as_sf())
+  if (inherits(land_crop_try, "try-error")) {
+    new_bbox_border <- function(bbox){
+      if (bbox[["xmin"]] < st_bbox(land)[["xmin"]]) {
+        bbox[["xmin"]] <- st_bbox(land)[["xmin"]]
+      }
+      
+      if (bbox[["xmax"]] > st_bbox(land)[["xmax"]]) {
+        bbox[["xmax"]] <- st_bbox(land)[["xmax"]]
+      }
+      
+      bbox
+    }
+    new_bbox_poly_cell <- new_bbox_border(st_bbox(poly_cell))
+    land_crop <- 
+      st_crop(land, new_bbox_poly_cell) |>
+      st_as_sf()
+  }
+  # land cover data within the part of the grid cell within the boundaries
+  land_within_cell <- st_intersection(land_crop, poly_cell_in_map)
+  
+  tibble(
+    i = i, 
+    percent_cropland = mean(land_within_cell$percent_cropland),
+    area_cell = poly_cell_in_map_area
+  )
+}
+```
+
+This function just needs to be applied to each cell of the grid. It takes a few hours on a standard 2021 computer.
+
+```{r, eval=FALSE}
+percent_cropland_cells <- vector(mode = "list", length = nrow(map_peru_grid))
+pb <- txtProgressBar(min = 0, max = nrow(map_peru_grid), style = 3)
+for (i in 1:nrow(map_peru_grid)) {
+  percent_cropland_cells[[i]] <- get_percent_cropland_cell(i)
+  setTxtProgressBar(pb, i)
+}
+percent_cropland_cells <- bind_rows(percent_cropland_cells)
+```
+
+Let us save this object.
+
+```{r, eval=FALSE}
+save(
+  percent_cropland_cells, 
+  file = "../data/output/land/percent_cropland_cells.rda"
+)
+```
+
+```{r, echo=FALSE}
+load("../data/output/land/percent_cropland_cells.rda")
+```
+
+```{r}
+percent_cropland_cells
+```
+
+Let us associate these values to each cell of the grid:
+
+```{r}
+map_peru_grid_agri <- map_peru_grid
+map_peru_grid_agri$i <- 1:nrow(map_peru_grid_agri)
+
+map_peru_grid_agri <- 
+  map_peru_grid_agri |> 
+  left_join(percent_cropland_cells)
+```
+
+The area of the cell is expressed in squared meters. Let us convert those values to squared kilometres. Then, for each cell, let us compute the cropland area.
+
+```{r}
+map_peru_grid_agri <- 
+  map_peru_grid_agri |> 
+  mutate(area_cell_sqkm = units::drop_units(area_cell)*10^-6) |> 
+  mutate(cropland = (percent_cropland/100) * area_cell_sqkm)
+save(map_peru_grid_agri, file = "../data/output/land/map_peru_grid_agri.rda")
+```
+
+Peru's area is 1,285,216 km2. The grid (some cells of which are partially outside the boundaries) area is:
+
+```{r}
+scales::number(sum(map_peru_grid_agri$area_cell_sqkm), big.mark = ",")
+```
+
+While this value makes sense, we get an odd value for the agricultural land. According to the World Bank, agricultural lands correspond to roughly 18% of total land in Peru. We only get 1.7%.
+
+```{r}
+100 * sum(map_peru_grid_agri$cropland) / 
+  sum(map_peru_grid_agri$area_cell_sqkm) # far from it...
+```
+
+However, what we are interested in here is the *relative* cropland area. Let us have a look at that.
+
+```{r}
+#| fig-cap: Agricultural land use in Peru
+#| label: fig-peru-land-use
+p <- 
+  ggplot() +
+  geom_sf(
+    data = map_peru_grid_agri,
+    mapping = aes(fill = cropland), colour = "white"
+  ) +
+  geom_sf(data = map_peru, fill = NA) +
+  scale_fill_gradient2(
+    "Cropland (squared meters)",
+    low = "white", high = "#61C250"
+  )
+p
+```
+
+Even if the values do not add up to 18% of total land, the relative values seem to be close to what can be observed on the Google Earth Engine:
+
+Here is the code used to reproduce that map on Google Earth Engine:
+
+```{r, eval=FALSE}
+var dataset = ee.Image("COPERNICUS/Landcover/100m/Proba-V-C3/Global/2019")
+.select('discrete_classification');
+
+Map.setCenter(-88.6, 26.4, 1);
+
+Map.addLayer(dataset, {}, "Land Cover");
+
+var worldcountries = ee.FeatureCollection('USDOS/LSIB_SIMPLE/2017');
+var filterCountry = ee.Filter.eq('country_na', 'Peru');
+var country = worldcountries.filter(filterCountry);
+var styling = {color: 'red', fillColor: '00000000'};
+Map.addLayer(country.style(styling));
+Map.centerObject(country, 5);
+```
+
+```{r}
+#| fig-cap: Land Use in Peru as displayed on Google Earth Engine
+#| label: fig-google-earth-land-use
+"figs/land_use_google_earth_Engine.png" |> 
+  knitr::include_graphics()
+```
+
+
+## Weather Data
+
+### Rainfall (Piscop)
+
+The rainfall data are obtained from the [gridded daily precipitation dataset PISCOp](https://piscoprec.github.io/webPISCO/en/2018/03/04/download-using-the-senamhi-ftp/) (@aybar_2020_construction).
+
+Note: this data source was added during the reviewing process to provide a robustness check kindly suggested by a reviewer.
+
+First, we load the raster data corresponding to the daily precipitation:
+```{r, eval=FALSE}
+prcp_pisco_sf_raster <- raster::raster(
+  "data/weather/Piscop//PISCOpd.nc"
+)
+```
+
+Then, we extract the start date of the data and create the vector of dates for the observations:
+```{r, eval=FALSE}
+start_date <- ymd("1981-01-01")
+nbands <- prcp_pisco_sf_raster@file@nbands
+dates <- seq(start_date, by="day", length.out = nbands)
+dates_tbl <- tibble(date = dates) |> 
+  mutate(time = row_number())
+```
+
+We load the data:
+```{r, eval=FALSE}
+library(tidync)
+prcp <- tidync::tidync("./data/weather/Piscop//PISCOpd.nc")
+```
+
+We will loop over the cells of the map of Peru. For each cell, we will load chunks of data iteratively (because the size of the data is too large to be loaded in memory). Let us consider 500 chunks.
+```{r, eval=FALSE}
+chunk_size <- 500
+a_parcourir <- tibble(
+  start = c(1, seq(1, length(dates))[seq(1, length(dates)) %% chunk_size == 0])
+  ) |> 
+  mutate(end = lead(start)-1)
+```
+
+```{r, eval=FALSE}
+if (last(a_parcourir$start) < length(dates)) {
+  a_parcourir <- a_parcourir |> 
+    mutate(end = ifelse(is.na(end), yes = length(dates), no = end))
+}
+```
+
+Once we have created the `a_parcourir` object that identifies the dates of the elements in each of the 500 chunks, we can loop over the grid cells.
+```{r, eval=FALSE}
+prcp_grille_k <- vector(mode = "list", length = nrow(map_peru_grid))
+pb <- txtProgressBar(min = 0, max = nrow(map_peru_grid), style = 3)
+# Loop over the cells  of the grid
+for (k in 1:nrow(map_peru_grid)) {
+  # Identifying the kth cell
+  cell <- map_peru_grid[k,]
+  
+  
+  grid_prcp <- 
+    prcp |> 
+    tidync::hyper_filter(z = z == 0) |> 
+    tidync::hyper_tibble() |> 
+    sf::st_as_sf(
+      coords = c("longitude", "latitude"),
+      crs = "+init=EPSG:4326",
+      remove = FALSE
+    )
+  # Keeping only data in the kth cell: recovering coordinates
+  ind_cell <- st_contains(cell, grid_prcp)[[1]]
+  
+  coords_keep <- 
+    grid_prcp |> 
+    slice(ind_cell) |> 
+    as_tibble() |> 
+    dplyr::select(longitude, latitude)
+  
+  prcp_grid_j <- vector(mode="list", length = nrow(a_parcourir))
+  # Loop over chunks of dates
+  for(j in 1:nrow(a_parcourir)){
+    start <- a_parcourir$start[j]
+    end <- a_parcourir$end[j]
+    
+    prcp_grid_j[[j]] <- 
+      prcp |> 
+      tidync::hyper_filter(z = dplyr::between(z, start, end)) |>
+      tidync::hyper_tibble() |> 
+      semi_join(coords_keep, by = c("longitude", "latitude")) |> 
+      rename(time = z) |> 
+      dplyr::left_join(dates_tbl, by = "time") |> 
+      dplyr::filter(!is.na(date)) |> 
+      dplyr::select(variable, date) |> 
+      group_by(date) |> 
+      summarise(variable = mean(variable, na.rm=TRUE)) |> 
+      dplyr::mutate(grid_id = k)
+  }
+  
+  prcp_grid_j <- bind_rows(prcp_grid_j)
+  
+  prcp_grille_k[[k]] <- prcp_grid_j
+  setTxtProgressBar(pb, k)
+}
+
+prcp_grille <- bind_rows(prcp_grille_k)
+
+save(
+  prcp_grille,
+  file = "../data/output/weather/PISCO_precip/prcp_grille_piscop.rda"
+)
+```
+
+
+```{r, echo=FALSE}
+load("../data/output/weather/PISCO_precip/prcp_grille_piscop.rda")
+```
+
+```{r}
+prcp_grille
+```
+
+
+### Rainfall (Chirps)
+
+The rainfall data are obtained from the [CHIRPS v2.0 database](https://www.chc.ucsb.edu/data/chirps), made available by the Climate Hazards Center of the UC Santa Barbara. Covering the quasi totality of the globe, the data set provides daily information on rainfall on a 0.05° resolution satellite imagery, from 1981 to present. The complete presentation of the data can be found on the Climate Hazards Center's website @center_2021_chirps and the data set is freely available online.
+
+```{r, eval=FALSE}
+N <- list.files(
+  "data/raw/weather/CHIRPS-2_0_global_daily_p25", 
+  pattern = "\\.nc$", full.names = TRUE
+)
+```
+
+Let us loop over the files (one per year). At each iteration, let us save the intermediate results.
+```{r, eval=FALSE}
+for (ii in 1:length(N)) {
+  file <- N[ii]
+  precip_sf_raster <- raster::raster(file)
+  proj4string(precip_sf_raster) <- CRS("+init=EPSG:4326")
+  
+  precip_sf <- 
+    stars::st_as_stars(precip_sf_raster) |> 
+    sf::st_as_sf()
+  
+  sf::sf_use_s2(FALSE)
+  precip_sf$geometry <-
+    precip_sf$geometry |>
+    s2::s2_rebuild() |>
+    sf::st_as_sfc()
+  
+  
+  precip_grille_i <- vector(mode = "list", length = nrow(map_peru_grid))
+  pb <- txtProgressBar(min=0, max=nrow(map_peru_grid), style=3)
+  for (k in 1:nrow(map_peru_grid)) {
+    
+    # Average precipitations in the k-th cell
+    tmp <- suppressMessages(
+      st_interpolate_aw(precip_sf, map_peru_grid[k,], extensive = FALSE)
+    )
+    # Each column of `tmp` gives the average for a given date
+    tmp <- tibble(tmp)
+    
+    # Let us transform `tmp` so that each row gives the average precipitations 
+    # in the k-th cell, for a specific date
+    
+    tmp_2 <- 
+      tmp |> 
+      tidyr::pivot_longer(cols = -c(geometry), names_to = "date_v") |> 
+      dplyr::mutate(date = str_remove(date_v, "^X") |> lubridate::ymd()) |> 
+      dplyr::select(-date_v, -geometry) |> 
+      dplyr::mutate(grid_id = k)
+    # Add the ID of the k-th cell
+    precip_grille_i[[k]] <- tmp_2
+    setTxtProgressBar(pb, k)
+  }
+  
+  precip_grille <- 
+    precip_grille_i |> bind_rows()
+  
+  file_name <- str_replace(file, "\\.nc$", ".rda")
+  file_name <- str_replace(file_name, "data/raw/", "data/output/")
+  
+  save(precip_grille, file = file_name)
+}
+```
+
+The intermediate results can be loaded again, and merged to a single tibble:
+```{r, eval=FALSE}
+N <- list.files(
+  "../data/output/weather/CHIRPS-2_0_global_daily_p25", 
+  pattern = "days_p25\\.rda$", 
+  full.names = TRUE
+)
+load_precip <- function(x) {load(x) ; precip_grille}
+precip_grille <- map(N, load_precip) |> list_rbind()
+```
+
+The resulting tibble can be saved:
+```{r, eval=FALSE}
+save(
+  precip_grille,
+  file = "../data/output/weather/CHIRPS-2_0_global_daily_p25/precip_grille.rda"
+)
+```
+
+```{r, echo=FALSE}
+load("../data/output/weather/CHIRPS-2_0_global_daily_p25/precip_grille.rda")
+```
+
+```{r}
+precip_grille
+```
+
+### Temperatures
+
+We use the PISCO temperature dataset version 1.1c (PISCOt). The PISCOt dataset represents a gridded product of maximum (tx) temperature and minimum (tn) temperature at a spatial resolution of 0.1° for Peru. It is available at daily (d), monthly (m), and annual (a) scales. In this analysis, we utilize the daily values of the PISCOt dataset. More details can be found on [Github](https://github.com/adrHuerta/PISCOt).
+
+#### Minimum Temperatures
+
+
+First, we load the raster data corresponding to the daily minimum temperatures:
+```{r, eval=FALSE}
+tmin_sf_raster <- raster::raster(
+  "../data/raw/weather/PISCO_temperature/PISCOdtn_v1.1.nc"
+)
+```
+
+Then, we extract the start date of the data and create the vector of dates for the observations:
+```{r, eval=FALSE}
+start_date <- tmin_sf_raster@z[[1]] |> ymd()
+nbands <- tmin_sf_raster@file@nbands
+dates <- seq(start_date, by="day", length.out = nbands)
+dates_tbl <- tibble(date = dates) |> 
+  mutate(time = row_number())
+```
+
+We load the data:
+```{r, eval=FALSE}
+library(tidync)
+tmin <- tidync::tidync("./data/raw/weather/PISCO_temperature/PISCOdtn_v1.1.nc")
+```
+
+We will loop over the cells of the map of Peru. For each cell, we will load chunks of data iteratively (because the size of the data is too large to be loaded in memory). Let us consider 500 chunks.
+```{r, eval=FALSE}
+chunk_size <- 500
+a_parcourir <- tibble(
+  start = c(1, seq(1, length(dates))[seq(1, length(dates)) %% chunk_size == 0])
+  ) |> 
+  mutate(end = lead(start)-1)
+```
+
+```{r, eval=FALSE}
+if (last(a_parcourir$start) < length(dates)) {
+  a_parcourir <- a_parcourir |> 
+    mutate(end = ifelse(is.na(end), yes = length(dates), no = end))
+}
+```
+
+Once we have created the `a_parcourir` object that identifies the dates of the elements in each of the 500 chunks, we can loop over the grid cells.
+```{r, eval=FALSE}
+tmin_grille_k <- vector(mode = "list", length = nrow(map_peru_grid))
+pb <- txtProgressBar(min=0, max=nrow(map_peru_grid), style=3)
+# Loop over the cells  of the grid
+for (k in 1:nrow(map_peru_grid)) {
+  # Identifying the kth cell
+  cell <- map_peru_grid[k,]
+  
+  grid_tmin <- 
+    tmin |> 
+    tidync::hyper_filter(time = time ==0) |> 
+    tidync::hyper_tibble() |> 
+    sf::st_as_sf(
+      coords = c("longitude", "latitude"),
+      crs="+init=EPSG:4326",
+      remove=FALSE
+    )
+  # Keeping only data in the kth cell: recovering coordinates
+  ind_cell <- st_contains(cell, grid_tmin)[[1]]
+  
+  coords_keep <- 
+    grid_tmin |> 
+    slice(ind_cell) |> 
+    as_tibble() |> 
+    dplyr::select(longitude, latitude)
+  
+  tmin_grid_j <- vector(mode="list", length = nrow(a_parcourir))
+  # Loop over chunks of dates
+  for(j in 1:nrow(a_parcourir)){
+    start <- a_parcourir$start[j]
+    end <- a_parcourir$end[j]
+    
+    tmin_grid_j[[j]] <- 
+      tmin |> 
+      tidync::hyper_filter(time = dplyr::between(time, start, end)) |>
+      tidync::hyper_tibble() |> 
+      semi_join(coords_keep, by = c("longitude", "latitude")) |> 
+      dplyr::left_join(dates_tbl, by = "time") |> 
+      dplyr::filter(!is.na(date)) |> 
+      dplyr::select(tn, date) |> 
+      group_by(date) |> 
+      summarise(tn = mean(tn, na.rm=TRUE)) |> 
+      dplyr::mutate(grid_id = k)
+  }
+  
+  tmin_grid_j <- bind_rows(tmin_grid_j)
+  
+  tmin_grille_k[[k]] <- tmin_grid_j
+  setTxtProgressBar(pb, k)
+}
+
+tmin_grille <- bind_rows(tmin_grille_k)
+
+save(
+  tmin_grille,
+  file = "data/output/weather/PISCO_temperature/tmin_grille.rda"
+)
+```
+
+#### Maximum Temperatures
+
+We follow the same procedure for the maximum temperatures.
+```{r, eval=FALSE}
+tmax_sf_raster <- raster::raster(
+  "data/raw/weather/PISCO_temperature/PISCOdtx_v1.1.nc"
+)
+
+start_date <- tmax_sf_raster@z[[1]] |> ymd()
+nbands <- tmax_sf_raster@file@nbands
+dates <- seq(start_date, by="day", length.out = nbands)
+dates_tbl <- tibble(date = dates) |> 
+  mutate(time = row_number())
+dates_tbl
+
+library(tidync)
+tmax <- tidync::tidync(
+  "./data/raw/weather/PISCO_temperature/PISCOdtx_v1.1.nc"
+)
+
+chunk_size <- 500
+a_parcourir <- tibble(
+  start = c(1, seq(1, length(dates))[seq(1, length(dates)) %% chunk_size == 0])
+) |> 
+  mutate(end = lead(start) - 1)
+
+if (last(a_parcourir$start) < length(dates)) {
+  a_parcourir <- a_parcourir |> 
+    mutate(end = ifelse(is.na(end), yes = length(dates), no = end))
+}
+
+
+tmax_grille_k <- vector(mode = "list", length = nrow(map_peru_grid))
+pb <- txtProgressBar(min=0, max=nrow(map_peru_grid), style = 3)
+# Loop over the cells  of the grid
+for(k in 1:nrow(map_peru_grid)){
+  # Identifying the kth cell
+  cell <- map_peru_grid[k,]
+  
+  grid_tmax <- 
+    tmax |> 
+    tidync::hyper_filter(time = time ==0) |> 
+    tidync::hyper_tibble() |> 
+    sf::st_as_sf(
+      coords = c("longitude", "latitude"),
+      crs="+init=EPSG:4326",
+      remove=FALSE
+    )
+  # Keeping only data in the kth cell: recovering coordinates
+  ind_cell <- st_contains(cell, grid_tmax)[[1]]
+  
+  coords_keep <- 
+    grid_tmax |> 
+    slice(ind_cell) |> 
+    as_tibble() |> 
+    dplyr::select(longitude, latitude)
+  
+  tmax_grid_j <- vector(mode="list", length = nrow(a_parcourir))
+  # Loop over chunks of dates
+  for (j in 1:nrow(a_parcourir)) {
+    start <- a_parcourir$start[j]
+    end <- a_parcourir$end[j]
+    
+    tmax_grid_j[[j]] <- 
+      tmax |> 
+      tidync::hyper_filter(time = dplyr::between(time, start, end)) |>
+      tidync::hyper_tibble() |> 
+      semi_join(coords_keep, by = c("longitude", "latitude")) |> 
+      dplyr::left_join(dates_tbl, by = "time") |> 
+      dplyr::filter(!is.na(date)) |> 
+      dplyr::select(tx, date) |> 
+      group_by(date) |> 
+      summarise(tx = mean(tx, na.rm=TRUE)) |> 
+      dplyr::mutate(grid_id = k)
+  }
+  
+  tmax_grid_j <- bind_rows(tmax_grid_j)
+  
+  tmax_grille_k[[k]] <- tmax_grid_j
+  setTxtProgressBar(pb, k)
+}
+
+tmax_grille <- bind_rows(tmax_grille_k)
+
+save(
+  tmax_grille, 
+  file = "data/output/weather/PISCO_temperature/tmax_grille.rda"
+)
+```
+
+#### Merging Temperatures
+
+Lastly, we merge the daily temperature data at the grid level together in a single tibble.
+```{r, eval = FALSE}
+temperatures_grid <- 
+  tmax_grille |> 
+  left_join(tmin_grille)
+```
+
+And we define daily mean temperatures as the average between min and max temperatures:
+```{r, eval=FALSE}
+temperatures_grid <- 
+  temperatures_grid |> 
+  rename(temp_max = tx, temp_min = tn) |> 
+  mutate(temp_mean = (temp_min + temp_max) / 2)
+```
+
+Let us save the observations:
+```{r, eval=FALSE}
+save(
+  temperatures_grid, 
+  file = "../data/output/weather/PISCO_temperature/temperatures_grid.rda"
+)
+```
+
+```{r, echo=FALSE}
+load("../data/output/weather/PISCO_temperature/temperatures_grid.rda")
+```
+
+Let us visualize the data at the grid level. We only look at the example of 2010. We compute the monthly average of daily mean, min, and maximum temperatures.
+```{r}
+map_peru_grid_temp <- 
+  map_peru_grid |> 
+  mutate(grid_id = row_number()) |> 
+  left_join(
+    temperatures_grid |> 
+      filter(year(date) == 2010) |> 
+      mutate(
+        month = month(date, abbr = FALSE, label = TRUE, locale = "en_US")
+      ) |> 
+      # Monthly average
+      group_by(grid_id, month) |> 
+      summarise(
+        mean_temp_mean = mean(temp_mean),
+        mean_temp_min = mean(temp_min),
+        mean_temp_max = mean(temp_max),
+        .groups = "drop"
+      )
+  )
+```
+
+To have a similar color scale for each variable, let us extract the range of values:
+```{r}
+range_temperatures <- c(
+  min(map_peru_grid_temp$mean_temp_min, na.rm = TRUE),
+  max(map_peru_grid_temp$mean_temp_max, na.rm = TRUE)
+)
+```
+
+::: {.panel-tabset}
+
+##### Mean temp.
+
+```{r}
+#| code-fold: true
+#| fig-cap: Monthly Mean of Daily Average Temperature 2010 in Peru
+#| label: fig-grid-monthly-mean-mean-temp
+p_tmp_mean <- 
+  ggplot() +
+  geom_sf(
+    data = map_peru_grid_temp |> filter(!is.na(mean_temp_mean)),
+    mapping = aes(fill = mean_temp_mean)
+  ) +
+  geom_sf(data = map_peru, fill = NA) +
+  scale_fill_gradient2(
+    low = "#005A8B", mid = "white", high = "#AA2F2F", 
+    midpoint = 0, limits = range_temperatures
+  ) +
+  facet_wrap(~month)
+p_tmp_mean
+```
+
+
+##### Min temp.
+```{r}
+#| code-fold: true
+#| fig-cap: Monthly Mean of Daily Minimum Temperature 2010 in Peru
+#| label: fig-grid-monthly-mean-min-temp
+p_tmp_min <-
+  ggplot() +
+  geom_sf(
+    data = map_peru_grid_temp |> filter(!is.na(mean_temp_min)),
+    mapping = aes(fill = mean_temp_min)
+  ) +
+  geom_sf(data = map_peru, fill = NA) +
+  scale_fill_gradient2(
+    low = "#005A8B", mid = "white", high = "#AA2F2F",
+    midpoint = 0, limits = range_temperatures
+  ) +
+  facet_wrap(~month)
+p_tmp_min
+```
+
+
+##### Max temp.
+
+```{r}
+#| code-fold: true
+#| fig-cap: Monthly Mean of Daily Maximym Temperature 2010 in Peru
+#| label: fig-grid-monthly-mean-max-temp
+p_tmp_max <- 
+  ggplot() +
+  geom_sf(
+    data = map_peru_grid_temp |> filter(!is.na(mean_temp_max)),
+    mapping = aes(fill = mean_temp_max)
+  ) +
+  geom_sf(data = map_peru, fill = NA) +
+  scale_fill_gradient2(
+    low = "#005A8B", mid = "white", high = "#AA2F2F", 
+    midpoint = 0, limits = range_temperatures,
+  ) +
+  facet_wrap(~month)
+p_tmp_max
+```
+
+:::
+
+
+## Creation of Variables on the Grid
+
+
+Let us merge the temperature and precipitation data in a single tibble:
+```{r define-weather_peru_daily_grid}
+weather_peru_daily_grid <- 
+  precip_grille |> 
+  rename(precip = value) |> 
+  left_join(temperatures_grid, by = c("date", "grid_id")) |> 
+  left_join(
+    prcp_grille |> rename(precip_piscop = variable),
+    by = c("date", "grid_id")
+  )
+```
+
+
+There are some issues with the 501th cell Let us remove that cell.
+```{r}
+weather_peru_daily_grid <- 
+  weather_peru_daily_grid |> 
+  filter(grid_id != 501)
+```
+
+### Degree Days
+
+Following @aragon2021climate, we compute degree days, with crop-specific threshold values.
+$$
+\text{DD} = \frac{1}{n} \sum_{d=1}^{n}\left(\min{(h_d, \tau)} - \tau_{\ell}\right) \mathbf{1}(h_d\geq 8),
+$$
+where $h_d$ is the average observed temperature observed in day $d$, $n$ is the number of days in the period of interest (month, quarter, or year), $\tau$ is a crop-specific threshold set to 29 for rice and maize and set to 30 for potato and cassava. The parameter $\tau_{\ell}$ is a lower bound set to 8 for all crops.
+
+Degree days capture the cumulative exposure to temperatures comprised between the lower bound $\tau_{\ell}$ and the upper bound $\tau$.
+
+
+```{r define-gdd}
+# Degree Days
+weather_peru_daily_grid <- 
+  weather_peru_daily_grid |> 
+  mutate(
+    gdd_daily_rice = temp_mean - 8,
+    gdd_daily_rice = ifelse(temp_mean > 29, yes = 21, no = gdd_daily_rice),
+    gdd_daily_rice = ifelse(temp_mean < 8, yes = 0, no = gdd_daily_rice),
+    #
+    gdd_daily_maize = temp_mean - 8,
+    gdd_daily_maize = ifelse(temp_mean > 29, yes = 21, no = gdd_daily_maize),
+    gdd_daily_maize = ifelse(temp_mean < 8, yes = 0, no = gdd_daily_maize),
+    #
+    gdd_daily_potato = temp_mean - 10,
+    gdd_daily_potato = ifelse(temp_mean > 30, yes = 20, no = gdd_daily_potato),
+    gdd_daily_potato = ifelse(temp_mean < 10, yes = 0, no = gdd_daily_potato),
+    #
+    gdd_daily_cassava = temp_mean - 10,
+    gdd_daily_cassava = ifelse(temp_mean > 30, yes = 20, no = gdd_daily_cassava),
+    gdd_daily_cassava = ifelse(temp_mean < 10, yes = 0, no = gdd_daily_cassava)
+  )
+```
+
+### Harmful Degree Days
+
+
+We also define harmful degree days (@aragon2021climate):
+$$
+\text{HDD} = \frac{1}{n}\sum_{d=1}^{n} = \left(h_d - \tau_{\text{high}}\right) \mathbf{1}(h_d > \tau_\ell),
+$$
+where $\tau_{\text{high}}$ is a crop-specific threshold set to 29 for rice and maize and set to 30 for potato and cassava.
+
+```{r define-hdd}
+weather_peru_daily_grid <- 
+  weather_peru_daily_grid |> 
+  mutate(
+    hdd_daily_maize  = ifelse(temp_mean > 29, yes = temp_mean - 29, no = 0), 
+    hdd_daily_rice  = ifelse(temp_mean > 29, yes = temp_mean - 29, no = 0), 
+    hdd_daily_potato  = ifelse(temp_mean > 30, yes = temp_mean - 30, no = 0), 
+    hdd_daily_cassava  = ifelse(temp_mean > 30, yes = temp_mean - 30, no = 0)
+  )
+```
+
+
+### Cold / Hot / Dry / Wet Surprise Days {#sec-weather-data-surprise-weather}
+
+We follow @natoli2024temperature and define cold and hot surprise weather shocks.
+
+The idea is to compare the realized temperatures that occurred during a month $m$ of a year $y$ in a location $c$ with the expected realizations calculated from the past observed temperatures during the same month $m$ in previous years at the same location $c$. The difference between these two values is defined as a surprise shock.
+
+The shock in cell $c$ is defined as follows for days hotter than expected during month $m$ of year $y$:
+$$
+\mathcal{W}\text{hot}_{c,y,m} = \underbrace{\sum_{d=1}^{n_{m}} \mathrm{1}\left(\mathcal{T}_{c,y,m,d} > \text{ut}_{c,y,m} \right)}_{\text{observed realizations}} - \underbrace{\frac{1}{5}\sum_{k=1}^{5}\sum_{d=1}^{n_m} \mathrm{1}\left(\mathcal{T}_{c,y-k,m,d} > \text{ut}_{c,y,m}\right)}_{\text{expected realizations}},
+$$ {#eq-surprise-hot}
+
+where $\mathcal{T}_{c,y,m,d}$ is the average temperature observed on day $d$ of month $m$ in year $y$ in cell $c$, $n_m$ is the number of days in month $m$, and $\text{ut}_{c,y,m}$ is a threshold above which the daily average temperature is considered hot.
+
+
+Similarly, surprise cold shocks are defined as follows:
+$$
+\mathcal{W}\text{cold}_{c,y,m} = \underbrace{\sum_{d=1}^{n_{m}} \mathrm{1}\left(\mathcal{T}_{c,y,m,d} < \text{lt}_{c,y,m} \right)}_{\text{observed realizations}} - \underbrace{\frac{1}{5}\sum_{k=1}^{5}\sum_{d=1}^{n_m} \mathrm{1}\left(\mathcal{T}_{c,y-k,m,d} < \text{lt}_{c,y,m}\right)}_{\text{expected realizations}},
+$$ {#eq-surprise-cold}
+
+where $\text{lt}_{c,y,m}$ is a threshold used to define cold days.
+
+The thresholds $\text{ut}_{c,y,m}$ and $\text{lt}_{c,y,m}$ are defined using the average temperature observations during month $m$ of the 5 years preceding year $y$, denoted as $\boldsymbol{T}_{c,y,d} = \left\{\{\mathcal{T}_{c,y-1,m,d}\}_{d=1}^{n_m}, \{\mathcal{T}_{c,y-2,m,d}\}_{d=1}^{n_m}, \ldots, \{\mathcal{T}_{c,y-5,m,d}\}_{d=1}^{n_m}\}\right\}$. Based on the observations $\boldsymbol{T}_{c,y,d}$, the empirical 10th and 90th percentiles are calculated, $P_{10}(\boldsymbol{T}_{c,y,d})$ and $P_{90}(\boldsymbol{T}_{c,y,d})$.
+
+In @natoli2024temperature, the thresholds are constructed as follows:
+$$
+\begin{align}
+\text{ut}_{c,y,m} &= \max\left\{P_{90}(\boldsymbol{T}_{c,y,d}), \tau_{\text{upper}}\right\}\\
+\text{lt}_{c,y,m} &= \min\left\{P_{10}(\boldsymbol{T}_{c,y,d}), \tau_{\text{lower}}\right\}
+\end{align}
+$$
+where $\tau_{\text{upper}}\) and \(\tau_{\text{lower}}$ are arbitrarily fixed values. Here, we rely on agronomic literature to choose the values: $\tau_{\text{upper}} = 29^\circ$C for rice and maize, and $\tau_{\text{upper}} = 30^\circ$C for potatoes and cassava. For $\tau_{\text{lower}}$, we set the value at $8^\circ$C for rice and maize, and $10^\circ$C for potatoes and cassava.
+
+
+Similarly, we define surprise precipitation shocks for dry days as follows:
+$$
+\mathcal{W}\text{dry}_{c,y,m} = \underbrace{\sum_{d=1}^{n_{m}} \mathrm{1}\left(\mathcal{P}_{c,y,m,d} < \text{lt}_{c,y,m} \right)}_{\text{observed realizations}} - \underbrace{\frac{1}{5}\sum_{k=1}^{5}\sum_{d=1}^{n_m} \mathrm{1}\left(\mathcal{P}_{c,y-k,m,d} < \text{lt}_{c,y,m}\right)}_{\text{expected realizations}},
+$$ {#eq-surprise-dry}
+
+where $\mathcal{P}_{c,y,m,d}$ represents total precipitation. And for wet days:
+
+$$
+\mathcal{W}\text{wet}_{c,y,m} = \underbrace{\sum_{d=1}^{n_{m}} \mathrm{1}\left(\mathcal{P}_{c,y,m,d} > \text{ut}_{c,y,m} \right)}_{\text{observed realizations}} - \underbrace{\frac{1}{5}\sum_{k=1}^{5}\sum_{d=1}^{n_m} \mathrm{1}\left(\mathcal{P}_{c,y-k,m,d} > \text{ut}_{c,y,m}\right)}_{\text{expected realizations}},
+$$ {#eq-surprise-wet}
+
+In the case of dry/wet days, the thresholds are simply defined using percentiles:
+$$
+\begin{cases}
+\text{ut}_{c,y,m} & = P_{90}(\boldsymbol{P}_{c,y,d})\\
+\text{lt}_{c,y,m} & = P_{10}(\boldsymbol{P}_{c,y,d})
+\end{cases}
+$$
+with $\boldsymbol{P}_{c,y,d} = \left\{\{\mathcal{P}_{c,y-1,m,d}\}_{d=1}^{n_m}, \{\mathcal{P}_{c,y-2,m,d}\}_{d=1}^{n_m}, \ldots, \{\mathcal{P}_{c,y-5,m,d}\}_{d=1}^{n_m}\}\right\}$ representing the total daily precipitation observed during month $m$ in the 5 years preceding year $y$ in cell $c$.
+
+
+Let us implement this in R. First, let us extract the year and month of each observation from the grid.
+```{r, eval=FALSE}
+weather_peru_daily_grid <- 
+  weather_peru_daily_grid |> 
+  mutate(year = year(date), month = month(date))
+```
+
+Then, we define function `get_surprise_w_shocks_monthly()`{.R} that computes, for a specific month $m$ in year $y$ the surprise shocks for each cell.
+
+```{r define-get_surprise_w_shocks_monthly}
+#' Computes the cell-level cold surprise and hot surprise with respect to the 
+#' daily temperatures in the past years
+#' 
+# Natoli, Filippo, The Macroeconomic Effects of Unexpected Temperature Shocks 
+# (April 11, 2024). 
+# Available at SSRN: https://ssrn.com/abstract=4160944
+#' 
+#' @paam year year to consider
+#' @param month month to consider
+#' @param window number of years for the window
+#' @param upper_threshold upper threshold above which a day is considered hot
+#' @param lower_threshold upper threshold above which a day is considered cold
+get_surprise_w_shocks_monthly <- function(year,
+                                          month, 
+                                          window, 
+                                          upper_threshold, 
+                                          lower_threshold) {
+  
+  # Focus on values from the previous `window` years for the same month
+  years_window <- seq(year-window, year-1)
+  weather_window <- weather_peru_daily_grid |> 
+    filter(year %in% !!years_window, month == !!month)
+  # Compute 10th and 90th percentiles of daily temperatures for each cell over
+  # the past years
+  # Then compute the expected number of cold/hot days in each cell
+  # (as the average of the number of cold/hot days observed over the window, 
+  # in each cell)
+  weather_expected <- 
+    weather_window |> 
+    nest(.by = grid_id) |> 
+    mutate(
+      p10_temp = map(data, ~quantile(.x$temp_mean, probs = .1, na.rm = TRUE)),
+      p90_temp = map(data, ~quantile(.x$temp_mean, probs = .9, na.rm = TRUE)),
+      p10_precip_piscop = map(
+        data, ~quantile(.x$precip_piscop, probs = .1, na.rm = TRUE)
+      ),
+      p90_precip_piscop = map(
+        data, ~quantile(.x$precip_piscop, probs = .9, na.rm = TRUE)
+      )
+    ) |> 
+    unnest(cols = c(
+      data, p10_temp, p90_temp, p10_precip_piscop, p90_precip_piscop)
+    ) |> 
+    dplyr::select(
+      grid_id, date, year, month, 
+      p10_temp, p90_temp, p10_precip_piscop, p90_precip_piscop, 
+      temp_mean, precip_piscop
+    ) |> 
+    mutate(
+      lt_temp = pmin(p10_temp, lower_threshold, na.rm = TRUE),
+      ut_temp = pmax(p90_temp, upper_threshold, na.rm = TRUE),
+      lt_precip_piscop = p10_precip_piscop,
+      ut_precip_piscop = p90_precip_piscop
+    ) |> 
+    mutate(
+      is_cold = temp_mean < lt_temp,
+      is_hot = temp_mean > ut_temp,
+      is_dry = precip_piscop < lt_precip_piscop,
+      is_wet = precip_piscop > ut_precip_piscop
+    ) |> 
+    # Number of cold/hot days in the month of each cell, for each year
+    group_by(
+      grid_id, year, month, lt_temp, ut_temp, lt_precip_piscop, ut_precip_piscop
+    ) |> 
+    summarise(
+      nb_cold_expected = sum(is_cold, na.rm = TRUE),
+      nb_hot_expected = sum(is_hot, na.rm = TRUE),
+      nb_dry_expected = sum(is_dry, na.rm = TRUE),
+      nb_wet_expected = sum(is_wet, na.rm = TRUE),
+      .groups = "drop"
+    ) |> 
+    # Average number of cold/hot days in each cell, over the window
+    group_by(
+      grid_id, month, lt_temp, ut_temp, lt_precip_piscop, ut_precip_piscop
+    ) |> 
+    summarise(
+      nb_cold_expected = mean(nb_cold_expected, na.rm = TRUE),
+      nb_hot_expected = mean(nb_hot_expected, na.rm = TRUE),
+      nb_dry_expected = mean(nb_dry_expected, na.rm = TRUE),
+      nb_wet_expected = mean(nb_wet_expected, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # The weather data for the current (year, month), for all cells
+  weather_current <- 
+    weather_peru_daily_grid |> 
+    filter(year == !!year, month == !!month)
+  
+  weather_current |> 
+    dplyr::select(date, grid_id, temp_mean, precip_piscop, year, month) |> 
+    left_join(weather_expected, by = c("grid_id", "month")) |> 
+    mutate(
+      is_cold = temp_mean < lt_temp,
+      is_hot = temp_mean > ut_temp,
+      is_dry = temp_mean < lt_precip_piscop,
+      is_wet = temp_mean > ut_precip_piscop
+    ) |> 
+    group_by(
+      year, month, grid_id, 
+      nb_cold_expected, nb_hot_expected, nb_dry_expected, nb_wet_expected
+    ) |> 
+    summarise(
+      nb_cold_obs = sum(is_cold, na.rm = TRUE),
+      nb_hot_obs = sum(is_hot, na.rm = TRUE),
+      nb_dry_obs = sum(is_dry, na.rm = TRUE),
+      nb_wet_obs = sum(is_wet, na.rm = TRUE),
+      .groups = "drop"
+    ) |> 
+    mutate(
+      cold_surprise = nb_cold_obs - nb_cold_expected,
+      hot_surprise = nb_hot_obs - nb_hot_expected,
+      dry_surprise = nb_dry_obs - nb_dry_expected,
+      wet_surprise = nb_wet_obs - nb_wet_expected
+    ) |> 
+    dplyr::select(
+      year, month, grid_id, 
+      cold_surprise, hot_surprise, dry_surprise, wet_surprise
+    )
+}
+```
+
+
+Since the `get_surprise_w_shocks_monthly()`{.R} function returns the surprise shocks for a single month of a year (but for all cells of the grid), we need to loop over the different months/years of the sample.
+
+The sliding window size is set to 5 (years).
+```{r, eval=FALSE}
+# Five years window
+window <- 5
+```
+
+We prepare a table with the values of the different months/years to consider.
+```{r, eval=FALSE}
+grid_years_months <- expand_grid(
+  year = seq(min(weather_peru_daily_grid$year) + window, 
+             max(weather_peru_daily_grid$year)),
+  month = 1:12
+)
+```
+
+
+For rice and maize, we set the upper threshold $\text{ut}_{c,y,m}=29$ and the lower threshold $\text{lt}_{c,y,m}=8$
+```{r, eval=FALSE}
+upper_threshold <- 29
+lower_threshold <- 8
+```
+
+To run the codes a bit faster, we loop over the `grid_years_months` using parallel computation.
+```{r, eval=FALSE}
+library(pbapply)
+library(parallel)
+ncl <- detectCores()-1
+(cl <- makeCluster(ncl))
+
+clusterEvalQ(cl, {
+  library(tidyverse)
+}) |>
+  invisible()
+```
+
+We send the required objects and functions to the workers:
+```{r, eval=FALSE}
+clusterExport(
+  cl, c(
+    "weather_peru_daily_grid", "get_surprise_w_shocks_monthly",
+    "grid_years_months", "window", "upper_threshold", "lower_threshold"
+  )
+)
+```
+
+Then, we can loop over the rows of `grid_years_months`.
+```{r, eval=FALSE}
+surprise_w_shocks_monthly_rice <- pblapply(
+  1:nrow(grid_years_months),
+  function(i) get_surprise_w_shocks_monthly(
+      year = grid_years_months$year[i], 
+      month = grid_years_months$month[i],
+      window = window, 
+      upper_threshold = upper_threshold,
+      lower_threshold = lower_threshold
+    ), 
+  cl = cl
+) |> 
+  list_rbind() |> 
+  rename(
+    cold_surprise_rice = cold_surprise,
+    hot_surprise_rice = hot_surprise,
+    dry_surprise_rice = dry_surprise,
+    wet_surprise_rice = wet_surprise
+  )
+```
+
+The clusters need to be closed at the end.
+```{r eval=FALSE}
+stopCluster(cl)
+```
+
+The maize values are identical to that of rice:
+```{r, eval=FALSE}
+surprise_w_shocks_monthly_maize <- 
+  surprise_w_shocks_monthly_rice |> 
+  rename(
+    cold_surprise_maize = cold_surprise_rice,
+    hot_surprise_maize = hot_surprise_rice,
+    dry_surprise_maize = dry_surprise_rice,
+    wet_surprise_maize = wet_surprise_rice
+  )
+```
+
+
+Now, for potato and cassava, the threshold change and are set as follows:
+```{r, eval=FALSE}
+upper_threshold <- 30
+lower_threshold <- 8
+```
+
+Again, we need to loop over the months/years:
+```{r, eval=FALSE}
+grid_years_months <- expand_grid(
+  year = seq(min(weather_peru_daily_grid$year) + window, 
+             max(weather_peru_daily_grid$year)),
+  month = 1:12
+)
+ncl <- detectCores()-1
+(cl <- makeCluster(ncl))
+
+clusterEvalQ(cl, {
+  library(tidyverse)
+}) |>
+  invisible()
+
+clusterExport(
+  cl, c(
+    "weather_peru_daily_grid", "get_surprise_w_shocks_monthly",
+    "grid_years_months", "window", "upper_threshold", "lower_threshold"
+  )
+)
+
+surprise_w_shocks_monthly_potato <- pblapply(
+  1:nrow(grid_years_months),
+  function(i) get_surprise_w_shocks_monthly(
+    year = grid_years_months$year[i], 
+    month = grid_years_months$month[i],
+    window = window, 
+    upper_threshold = upper_threshold,
+    lower_threshold = lower_threshold
+  ), 
+  cl = cl
+) |> 
+  list_rbind() |> 
+  rename(
+    cold_surprise_potato = cold_surprise,
+    hot_surprise_potato = hot_surprise,
+    dry_surprise_potato = dry_surprise,
+    wet_surprise_potato = wet_surprise
+  )
+
+stopCluster(cl)
+```
+
+
+For cassava, the values are identical to that computed for potatos.
+```{r, eval=FALSE}
+surprise_w_shocks_monthly_cassava <- 
+  surprise_w_shocks_monthly_potato |> 
+  rename(
+    cold_surprise_cassava = cold_surprise_potato,
+    hot_surprise_cassava = hot_surprise_potato,
+    dry_surprise_cassava = dry_surprise_potato,
+    wet_surprise_cassava = wet_surprise_potato
+  )
+```
+
+Lastly, the surprise weather shocks can be merged in a single tibble.
+```{r, eval=FALSE}
+surprise_w_shocks_monthly <- 
+  surprise_w_shocks_monthly_rice |> 
+  left_join(surprise_w_shocks_monthly_maize) |> 
+  left_join(surprise_w_shocks_monthly_potato) |> 
+  left_join(surprise_w_shocks_monthly_cassava)
+```
+
+
+
+### Monthly Aggregation
+
+To convert the daily grid data into monthly data, we aggregate the values on a monthly basis while preserving the spatial scale of the grid cells. This allows us to analyze the data at a monthly resolution and maintain consistency with the original grid structure.
+
+Note that we only keep data from 1986 to 2015.
+```{r, eval=FALSE}
+monthly_weather_data <- 
+  weather_peru_daily_grid |> 
+  mutate(
+    # year       = lubridate::year(date),
+    # month      = lubridate::month(date),
+    month_name = lubridate::month(
+      date, abbr = FALSE, label = TRUE, locale = "en_US"
+    )
+  ) |> 
+  # Keeping 30 years of data
+  filter(year >= 1986, year <= 2015) |> 
+  # Monthly aggregates, at the grid cell level
+  group_by(year, month, grid_id) |> 
+  summarise(
+    # Average min temperature
+    temp_min = mean(temp_min, na.rm = TRUE),
+    # Average max temperature
+    temp_max = mean(temp_max, na.rm = TRUE),
+    # Average mean temperature
+    temp_mean = mean(temp_mean, na.rm = TRUE),
+    # Total rainfall
+    precip_sum = sum(precip, na.rm = TRUE),
+    # Total rainfall piscop
+    precip_piscop_sum = sum(precip_piscop, na.rm = TRUE),
+    # Monthly DD
+    gdd_rice = sum(gdd_daily_rice, na.rm = TRUE),
+    gdd_maize = sum(gdd_daily_maize, na.rm = TRUE),
+    gdd_potato = sum(gdd_daily_potato, na.rm = TRUE),
+    gdd_cassava = sum(gdd_daily_cassava, na.rm = TRUE),
+    # Monthly HDD
+    hdd_maize = sum(hdd_daily_maize, na.rm = TRUE),
+    hdd_rice = sum(hdd_daily_rice, na.rm = TRUE),
+    hdd_potato = sum(hdd_daily_potato, na.rm = TRUE),
+    hdd_cassava = sum(hdd_daily_cassava, na.rm = TRUE)
+  )
+```
+
+We do not need to keep track of the unit for the weather data. Let us drop that information.
+```{r, eval=FALSE}
+monthly_weather_data <- units::drop_units(monthly_weather_data)
+```
+
+We add surprise weather shocks:
+```{r, eval=FALSE}
+monthly_weather_data <- 
+  monthly_weather_data |> 
+  left_join(surprise_w_shocks_monthly)
+```
+
+
+### Quarterly Aggregation
+
+To convert the daily grid data into quarterly data, we aggregate the values  on a quarter basis while preserving the spatial scale of the grid cells.
+*Note*: we only keep data from 1986 to 2015.
+
+```{r, eval=FALSE}
+quarterly_weather_data <- 
+  weather_peru_daily_grid |> 
+  mutate(
+    # year       = lubridate::year(date),
+    quarter = lubridate::quarter(date)
+  ) |> 
+  # Keeping 30 years of data
+  filter(year >= 1986, year <= 2015) |> 
+  # Quartlery aggregates, at the grid cell level
+  group_by(year, quarter, grid_id) |> 
+  summarise(
+    # Average min temperature
+    temp_min = mean(temp_min, na.rm = TRUE),
+    # Average max temperature
+    temp_max = mean(temp_max, na.rm = TRUE),
+    # Average mean temperature
+    temp_mean = mean(temp_mean, na.rm = TRUE),
+    # Total rainfall
+    precip_sum = sum(precip, na.rm = TRUE),
+    # Total rainfall piscop
+    precip_piscop_sum = sum(precip_piscop, na.rm = TRUE),
+    # Quarterly GDD
+    gdd_rice = sum(gdd_daily_rice, na.rm = TRUE),
+    gdd_maize = sum(gdd_daily_maize, na.rm = TRUE),
+    gdd_potato = sum(gdd_daily_potato, na.rm = TRUE),
+    gdd_cassava = sum(gdd_daily_cassava, na.rm = TRUE),
+    # Quarterly HDD
+    hdd_maize = sum(hdd_daily_maize, na.rm = TRUE),
+    hdd_rice = sum(hdd_daily_rice, na.rm = TRUE),
+    hdd_potato = sum(hdd_daily_potato, na.rm = TRUE),
+    hdd_cassava = sum(hdd_daily_cassava, na.rm = TRUE)
+  )
+```
+
+We do not need to keep track of the unit for the weather data. Let us drop that information.
+```{r, eval=FALSE}
+quarterly_weather_data <- units::drop_units(quarterly_weather_data)
+```
+
+### Annual Aggregation
+
+To convert the daily grid data into annual data, we aggregate the values  on an annual basis while preserving the spatial scale of the grid cells.
+*Note*: we only keep data from 1986 to 2015.
+
+```{r, eval=FALSE}
+annual_weather_data <- 
+  weather_peru_daily_grid |> 
+  mutate(
+    year = lubridate::year(date)
+  ) |> 
+  # Keeping 30 years of data
+  filter(year >= 1986, year <= 2015) |> 
+  # Annual aggregates, at the grid cell level
+  group_by(year, grid_id) |> 
+  summarise(
+    # Average min temperature
+    temp_min = mean(temp_min, na.rm = TRUE),
+    # Average max temperature
+    temp_max = mean(temp_max, na.rm = TRUE),
+    # Average mean temperature
+    temp_mean = mean(temp_mean, na.rm = TRUE),
+    # Total rainfall
+    precip_sum = sum(precip, na.rm = TRUE),
+    # Total rainfall piscop
+    precip_piscop_sum = sum(precip_piscop, na.rm = TRUE),
+    # Annual DD
+    gdd_rice = sum(gdd_daily_rice, na.rm = TRUE),
+    gdd_maize = sum(gdd_daily_maize, na.rm = TRUE),
+    gdd_potato = sum(gdd_daily_potato, na.rm = TRUE),
+    gdd_cassava = sum(gdd_daily_cassava, na.rm = TRUE),
+    # Annual HDD
+    hdd_maize = sum(hdd_daily_maize, na.rm = TRUE),
+    hdd_rice = sum(hdd_daily_rice, na.rm = TRUE),
+    hdd_potato = sum(hdd_daily_potato, na.rm = TRUE),
+    hdd_cassava = sum(hdd_daily_cassava, na.rm = TRUE)
+  )
+```
+
+We do not need to keep track of the unit for the weather data. Let us drop that information.
+```{r, eval=FALSE}
+annual_weather_data <- units::drop_units(annual_weather_data)
+```
+
+
+
+### Climate Normals {#sec-weather-normals}
+
+To calculate the climate normals, which are the long-term averages, we compute the means of the weather variables over a period of 30 years.
+
+```{r, eval=FALSE}
+monthly_weather_data <- 
+  monthly_weather_data |> 
+  group_by(month, grid_id) |> 
+  mutate(
+    temp_min_monthly_lt   = mean(temp_min),
+    temp_max_monthly_lt   = mean(temp_max),
+    temp_mean_monthly_lt  = mean(temp_mean),
+    precip_sum_monthly_lt = mean(precip_sum),
+    precip_piscop_sum_monthly_lt = mean(precip_piscop_sum),
+    #
+    gdd_rice_monthly_lt = mean(gdd_rice),
+    gdd_maize_monthly_lt = mean(gdd_maize),
+    gdd_potato_monthly_lt = mean(gdd_potato),
+    gdd_cassava_monthly_lt = mean(gdd_cassava),
+    #
+    hdd_maize_monthly_lt = mean(hdd_maize),
+    hdd_rice_monthly_lt = mean(hdd_rice),
+    hdd_potato_monthly_lt = mean(hdd_potato),
+    hdd_cassava_monthly_lt = mean(hdd_cassava)
+  ) |> 
+  ungroup()
+```
+
+
+For quarterly data:
+```{r, eval=FALSE}
+quarterly_weather_data <- 
+  quarterly_weather_data |> 
+  group_by(quarter, grid_id) |> 
+  mutate(
+    temp_min_quarterly_lt   = mean(temp_min),
+    temp_max_quarterly_lt   = mean(temp_max),
+    temp_mean_quarterly_lt  = mean(temp_mean),
+    precip_sum_quarterly_lt = mean(precip_sum),
+    precip_piscop_sum_quarterly_lt = mean(precip_piscop_sum),
+    #
+    gdd_rice_quarterly_lt = mean(gdd_rice),
+    gdd_maize_quarterly_lt = mean(gdd_maize),
+    gdd_potato_quarterly_lt = mean(gdd_potato),
+    gdd_cassava_quarterly_lt = mean(gdd_cassava),
+    #
+    hdd_maize_quarterly_lt = mean(hdd_maize),
+    hdd_rice_quarterly_lt = mean(hdd_rice),
+    hdd_potato_quarterly_lt = mean(hdd_potato),
+    hdd_cassava_quarterly_lt = mean(hdd_cassava)
+  ) |> 
+  ungroup()
+```
+
+
+For annual data:
+```{r, eval=FALSE}
+annual_weather_data <- 
+  annual_weather_data |> 
+  group_by(grid_id) |> 
+  mutate(
+    temp_min_annual_lt   = mean(temp_min),
+    temp_max_annual_lt   = mean(temp_max),
+    temp_mean_annual_lt  = mean(temp_mean),
+    precip_sum_annual_lt = mean(precip_sum),
+    precip_piscop_sum_annual_lt = mean(precip_piscop_sum),
+    #
+    gdd_rice_annual_lt = mean(gdd_rice),
+    gdd_maize_annual_lt = mean(gdd_maize),
+    gdd_potato_annual_lt = mean(gdd_potato),
+    gdd_cassava_annual_lt = mean(gdd_cassava),
+    #
+    hdd_maize_annual_lt = mean(hdd_maize),
+    hdd_rice_annual_lt = mean(hdd_rice),
+    hdd_potato_annual_lt = mean(hdd_potato),
+    hdd_cassava_annual_lt = mean(hdd_cassava)
+  ) |> 
+  ungroup()
+```
+
+
+### Rainfall Shock
+
+@Burke_2014_EJ defines precipitation shocks as using a Gamma distribution. The historical data of monthly rainfall at each grid point are fitted to a grid-specific gamma distribution, and each year at the grid point is assigned to its corresponding percentile in that distribution. Note that @Burke_2014_EJ uses crop-year data, whereas in our analysis, we use grid-month data.
+
+
+We define a function, `percentile_gamma_dist()`{.R}, to estimate the parameters of a Gamma distribution using some input values. Then, for each input value, the corresponding percentile in the estimated distribution can be returned.
+```{r}
+#' Estimate the shape and scale parameters of a Gamma distribution on the
+#' monthly sum of precipitation for a given cell, then returns the
+#' corresponding percentiles in the estimated distribution
+#' 
+#' @param x data frame with `precip_sum`, for a cell in a given calendar month
+percentile_gamma_dist <- function(x, source = c("chirps", "piscop")) {
+  # Estimate the shape and scale parameters of a Gamma distribution
+  if (source == "chirps") {
+    estim_gamma_precip <- EnvStats::egamma(x$precip_sum)
+  } else {
+    estim_gamma_precip <- EnvStats::egamma(x$precip_piscop_sum)
+  }
+  estim_g_shape <- estim_gamma_precip$parameters[["shape"]]
+  estim_g_scale <- estim_gamma_precip$parameters[["scale"]]
+  # Corresponding percentile in the estimated distribution
+  pgamma(q = x$precip_sum, shape = estim_g_shape, scale = estim_g_scale)
+}
+```
+
+We aggregate the observations by grid cell and month. For each series of observations, we apply the `percentile_gamma_dist()`{.R} function.
+```{r, eval=FALSE}
+monthly_weather_data <- 
+  monthly_weather_data |> 
+  ungroup() |> 
+  nest(.by = c(grid_id, month)) |> 
+  mutate(
+    perc_gamma_precip = map(
+      data, ~percentile_gamma_dist(.x, source = "chirps")
+    ),
+    perc_gamma_precip_piscop = map(
+      data, ~percentile_gamma_dist(.x, source = "piscop")
+    )
+  ) |> 
+  unnest(c(data, perc_gamma_precip, perc_gamma_precip_piscop))
+```
+
+Let us also do it for the quarterly data:
+```{r, eval=FALSE}
+quarterly_weather_data <- 
+  quarterly_weather_data |> 
+  ungroup() |> 
+  nest(.by = c(grid_id, quarter)) |> 
+  mutate(
+    perc_gamma_precip = map(
+      data, ~percentile_gamma_dist(.x, source = "chirps")
+    ),
+    perc_gamma_precip_piscop = map(
+      data, ~percentile_gamma_dist(.x, source = "piscop")
+    )
+  ) |> 
+  unnest(c(data, perc_gamma_precip, perc_gamma_precip_piscop))
+```
+
+And the annual data:
+```{r, eval=FALSE}
+annual_weather_data <- 
+  annual_weather_data |> 
+  ungroup() |> 
+  nest(.by = c(grid_id)) |> 
+  mutate(
+    perc_gamma_precip = map(
+      data, ~percentile_gamma_dist(.x, source = "chirps")
+    ),
+    perc_gamma_precip_piscop = map(
+      data, ~percentile_gamma_dist(.x, source = "piscop")
+    )
+  ) |> 
+  unnest(c(data, perc_gamma_precip, perc_gamma_precip_piscop))
+```
+
+
+### Deviations from Normals
+
+In Section [@sec-weather-normals], we established climate normals. We will now calculate the deviation from those normals for each grid cell and each month.
+
+```{r, eval=FALSE}
+monthly_weather_data <- 
+  monthly_weather_data |> 
+  mutate(
+    temp_min_dev   = temp_min - temp_min_monthly_lt,
+    temp_max_dev   = temp_max - temp_max_monthly_lt,
+    temp_mean_dev  = temp_mean - temp_mean_monthly_lt,
+    precip_sum_dev = precip_sum - precip_sum_monthly_lt,
+    precip_piscop_sum_dev = precip_piscop_sum - precip_piscop_sum_monthly_lt,
+    #
+    gdd_rice_dev = gdd_maize - gdd_maize_monthly_lt,
+    gdd_maize_dev = gdd_rice - gdd_rice_monthly_lt,
+    gdd_potato_dev = gdd_potato - gdd_potato_monthly_lt,
+    gdd_cassava_dev = gdd_cassava - gdd_cassava_monthly_lt,
+    #
+    hdd_rice_dev = hdd_maize - hdd_maize_monthly_lt,
+    hdd_maize_dev = hdd_rice - hdd_rice_monthly_lt,
+    hdd_potato_dev = hdd_potato - hdd_potato_monthly_lt,
+    hdd_cassava_dev = hdd_cassava - hdd_cassava_monthly_lt
+  )
+```
+
+And also for each grid cell and each quarter:
+```{r, eval=FALSE}
+quarterly_weather_data <- 
+  quarterly_weather_data |> 
+  mutate(
+    temp_min_dev   = temp_min - temp_min_quarterly_lt,
+    temp_max_dev   = temp_max - temp_max_quarterly_lt,
+    temp_mean_dev  = temp_mean - temp_mean_quarterly_lt,
+    precip_sum_dev = precip_sum - precip_sum_quarterly_lt,
+    precip_piscop_sum_dev = precip_piscop_sum - precip_piscop_sum_quarterly_lt,
+    #
+    gdd_rice_dev = gdd_maize - gdd_maize_quarterly_lt,
+    gdd_maize_dev = gdd_rice - gdd_rice_quarterly_lt,
+    gdd_potato_dev = gdd_potato - gdd_potato_quarterly_lt,
+    gdd_cassava_dev = gdd_cassava - gdd_cassava_quarterly_lt,
+    #
+    hdd_rice_dev = hdd_maize - hdd_maize_quarterly_lt,
+    hdd_maize_dev = hdd_rice - hdd_rice_quarterly_lt,
+    hdd_potato_dev = hdd_potato - hdd_potato_quarterly_lt,
+    hdd_cassava_dev = hdd_cassava - hdd_cassava_quarterly_lt
+  )
+```
+
+And also for the annual data:
+```{r, eval=FALSE}
+annual_weather_data <- 
+  annual_weather_data |> 
+  mutate(
+    temp_min_dev   = temp_min - temp_min_annual_lt,
+    temp_max_dev   = temp_max - temp_max_annual_lt,
+    temp_mean_dev  = temp_mean - temp_mean_annual_lt,
+    precip_sum_dev = precip_sum - precip_sum_annual_lt,
+    precip_piscop_sum_dev = precip_piscop_sum - precip_piscop_sum_annual_lt,
+    #
+    gdd_rice_dev = gdd_maize - gdd_maize_annual_lt,
+    gdd_maize_dev = gdd_rice - gdd_rice_annual_lt,
+    gdd_potato_dev = gdd_potato - gdd_potato_annual_lt,
+    gdd_cassava_dev = gdd_cassava - gdd_cassava_annual_lt,
+    #
+    hdd_rice_dev = hdd_maize - hdd_maize_annual_lt,
+    hdd_maize_dev = hdd_rice - hdd_rice_annual_lt,
+    hdd_potato_dev = hdd_potato - hdd_potato_annual_lt,
+    hdd_cassava_dev = hdd_cassava - hdd_cassava_annual_lt
+  )
+```
+
+
+### SPEI
+
+The [Standardized Precipitation-Evapotranspiration Index (SPEI)](https://spei.csic.es/) is a versatile drought index that utilizes climatic data to assess the onset, duration, and severity of drought conditions compared to normal conditions. 
+
+To calculate evapotranspiration, we need to provide the latitude parameter to the `thornthwaite()`{.R} function from the {SPIE} package. For each grid cell, we use the latitude of its barycenter as the input.
+```{r, eval=FALSE}
+centroids <- st_centroid(map_peru_grid$geometry)
+centroids_grid <- as_tibble(st_coordinates(centroids)) |> 
+  mutate(grid_id = row_number()) |> 
+  rename(longitude = X, latitude = Y)
+save(
+  centroids_grid,
+  file = "../data/output/shapefile_peru/centroids_grid.rda"
+)
+```
+
+```{r, echo=FALSE}
+load("../data/output/shapefile_peru/centroids_grid.rda")
+```
+
+The centroids of the cells are added to the `monthly_weather_data` tibble:
+```{r, eval=FALSE}
+monthly_weather_data <- 
+  monthly_weather_data |> 
+  left_join(centroids_grid)
+```
+
+and to the `quarterly_weather_data` tibble:
+```{r, eval=FALSE}
+quarterly_weather_data <- 
+  quarterly_weather_data |> 
+  left_join(centroids_grid)
+```
+
+
+and to the `annual_weather_data` tibble:
+```{r, eval=FALSE}
+annual_weather_data <- 
+  annual_weather_data |> 
+  left_join(centroids_grid)
+```
+
+
+
+We define a function, `compute_spei_cell()`{.R}, that computes the Potential evapotranspiration (PET), the Standardized Precipitation Index (SPI), and the Standardized Precipitation-Evapotranspiration Index (SPEI), at the grid level. We can specify, by giving a vector of integers to the  `scale` argument, the time scale at which the SPI and the SPEI are computed. This scale argument controls for the magnitude of the memory. In the help file of {SPEI}, one can read:
+
+> The magnitude of this memory is controlled by parameter scale. For example, a value of six would imply that data from the current month and of the past five months will be used for computing the SPEI or SPI value for a given month.
+
+```{r}
+#' Returns the SPI and SPEI on a monthly basis for a specific grid cell at
+#' different scales
+#'
+#' @param grid_id id of the grid cell
+#' @param scale vector of scales for the spi and spei functions
+#' @returns a tibble at the grid x monthly scale with the spi and the spei at
+#'   different scales
+compute_spei_cell <- function(grid_id, 
+                              scale = c(1,3,6,12)) {
+  lat <- centroids_grid |> 
+    filter(grid_id == !!grid_id) |> 
+    pull(latitude)  |> 
+    unique() |> 
+    as.numeric()
+  
+  tmp_grid <- 
+    monthly_weather_data |> 
+    # Focus on grid cell
+    filter(grid_id == !!grid_id) |> 
+    ungroup() |> 
+    arrange(year, month) |> 
+    dplyr::select(
+      year, month, grid_id, precip_sum, precip_piscop_sum, temp_mean, latitude
+    ) |> 
+    mutate(
+      PET = SPEI::thornthwaite(temp_mean, lat, verbose = FALSE), 
+      BAL = precip_sum - PET,
+      BAL_piscop = precip_piscop_sum - PET
+    )
+  
+  df_spi <- 
+    map(
+      .x = scale,
+      .f = ~tibble(
+        scale = .x,
+        spi = SPEI::spi(
+          tmp_grid$precip_sum, scale = .x, verbose = FALSE)$fitted,
+        spei = SPEI::spei(
+          tmp_grid$precip_sum, scale = .x, verbose = FALSE)$fitted,
+        spi_piscop = SPEI::spi(
+          tmp_grid$precip_piscop_sum, scale = .x, verbose = FALSE)$fitted,
+        spei_piscop = SPEI::spei(
+          tmp_grid$precip_piscop_sum, scale = .x, verbose = FALSE)$fitted
+      ) |> 
+        mutate(t = row_number()) |> 
+        mutate(
+          spi = ifelse(is.infinite(spi), yes = NA, no = spi),
+          spei = ifelse(is.infinite(spei), yes = NA, no = spei),
+          spi_piscop = ifelse(is.infinite(spi_piscop), yes = NA, no = spi_piscop),
+          spei_piscop = ifelse(is.infinite(spei_piscop), yes = NA, no = spei_piscop)
+        )
+    ) |> 
+    list_rbind() |> 
+    pivot_wider(names_from = scale, values_from = c(spi, spei, spi_piscop, spei_piscop)) |> 
+    dplyr::select(-t)
+  
+  bind_cols(tmp_grid, df_spi) |> 
+    dplyr::select(-precip_sum, -precip_piscop_sum, -temp_mean, -latitude)
+  
+}
+```
+
+We can then apply the `compute_spei_cell()`{.R} function to all the grid cells
+```{r, eval=FALSE}
+resul_spei <- 
+  map(
+  .x = unique(monthly_weather_data$grid_id),
+  .f = compute_spei_cell,
+  .progress = TRUE
+  )
+```
+
+And we bind the results in a single tibble:
+```{r, eval=FALSE}
+resul_spei <- 
+  resul_spei |> 
+  list_rbind(names_to = "grid_id")
+```
+
+The SPI and SPEI can be added to the weather tibble:
+```{r, eval=FALSE}
+monthly_weather_data <- 
+  monthly_weather_data |> 
+  ungroup() |> 
+  left_join(resul_spei)
+```
+
+
+## Aggregation at the (monthly) regional level
+
+
+We now proceed to aggregate the monthly values of each grid cell to the scale of administrative regions. To accomplish this, for each region, we simply calculate the average of the values from each cell, weighting each term according to two measures. Firstly, the proportion that the cell represents in the total surface area of the region. Secondly, the proportion that the cell represents in the agricultural production of the region.
+
+We focus on the following weather variables:
+```{r, eval=FALSE}
+weather_variables <- c(
+  "temp_min", "temp_max", "temp_mean", "precip_sum", "precip_piscop_sum",
+  #
+  "perc_gamma_precip", "perc_gamma_precip_piscop",
+  #
+  "gdd_rice", "gdd_maize", "gdd_potato", "gdd_cassava",
+  "hdd_rice", "hdd_maize", "hdd_potato", "hdd_cassava",
+  #
+  "temp_min_dev", "temp_max_dev", "temp_mean_dev",
+  "precip_sum_dev", "precip_piscop_sum_dev",
+  #
+  "gdd_rice_dev", "gdd_maize_dev", "gdd_potato_dev", "gdd_cassava_dev",
+  "hdd_rice_dev", "hdd_maize_dev","hdd_potato_dev", "hdd_cassava_dev",
+  #
+  "cold_surprise_maize", "cold_surprise_rice", 
+  "cold_surprise_potato", "cold_surprise_cassava",
+  "hot_surprise_maize", "hot_surprise_rice", 
+  "hot_surprise_potato", "hot_surprise_cassava",
+  #
+  "dry_surprise_maize", "dry_surprise_rice", 
+  "dry_surprise_potato", "dry_surprise_cassava",
+  "wet_surprise_maize", "wet_surprise_rice", 
+  "wet_surprise_potato", "wet_surprise_cassava"
+)
+weather_spi_variables <- colnames(resul_spei |> dplyr::select(matches("^spe?i")))
+weather_variables <- c(weather_variables, weather_spi_variables)
+weather_variables
+```
+
+
+We define a function, `aggregate_region_i()`{.R}, to perform the aggregation for a specific region.
+```{r, eval=FALSE}
+#' Aggregates the weather data at the region level
+#' @description For a specific region, the grid cells within that region are
+#'   first identified. Then, the area of the intersection between each grid cell
+#'   and the region are computed. The share of agricultural lands in each cell
+#'   is also computed. Combined together, the area of the intersection and the
+#'   agricultural share are used as weights to aggregate the data at the
+#'   regional level.
+#'
+#' @param i row index of the region in `map_peru`
+#' @param weather_variables vector of name of the weather variables to aggregate
+aggregate_region_i <- function(i, weather_variables) {
+  map_region_i <- map_peru[i,]
+  tmp <- 
+    sf::st_intersection(map_peru_grid_agri, map_region_i) |> 
+    # Get the area of the intersection between the polygon of the current
+    # region and each grid cell that intersects it
+    dplyr::mutate(area_cell_intersect = sf::st_area(geometry)) |> 
+    dplyr::rename(grid_id = i) |> 
+    # Get the weather data for the corresponding grid cells
+    dplyr::left_join(
+      monthly_weather_data,
+      by = "grid_id"
+    ) |> 
+    dplyr::filter(!is.na(year)) |> 
+    # Remove the unit in the area (squared metres)
+    dplyr::mutate(
+      area_cell_intersect = units::drop_units(area_cell_intersect)
+    ) |> 
+    dplyr::group_by(month, year) |> 
+    # Compute the weights to attribute to each grid cell
+    dplyr::mutate(
+      w_cropland = cropland / sum(cropland),
+      w_area     = area_cell_intersect / sum(area_cell_intersect),
+      w          = w_cropland * w_area,
+      w          = w / sum(w)) |> 
+    # Weighted weather variables
+    dplyr::mutate(
+      dplyr::across(
+        .cols = !!weather_variables,
+        .fns = ~ .x * w
+      )
+    ) |> 
+    dplyr::select(-geometry) |> 
+    tibble::as_tibble() |> 
+    dplyr::group_by(year, month) |> 
+    dplyr::select(-geometry) |> 
+    tibble::as_tibble() |> 
+    dplyr::group_by(year, month) |> 
+    dplyr::summarise(
+      dplyr::across(
+        .cols = !!weather_variables,
+        .fns = ~sum(.x, na.rm = TRUE)
+      ),
+      .groups = "drop"
+    ) |> 
+    dplyr::mutate(IDDPTO = map_region_i$IDDPTO)
+}
+```
+
+
+Then, we apply the `aggregate_region_i()`{.R} function to each region:
+```{r, eval=FALSE}
+weather_regions_df <- 
+  map(
+  .x = seq_len(nrow(map_peru)),
+  .f = ~aggregate_region_i(.x, weather_variables), 
+  .progress = TRUE
+)
+# Sanity check
+weather_regions_df |> 
+  list_rbind() |> 
+  filter(is.na(year)) |> 
+  dplyr::select(IDDPTO)
+```
+
+
+We add the department name:
+```{r, eval=FALSE}
+weather_regions_df <- 
+  weather_regions_df |> 
+  list_rbind() |> 
+  left_join(
+    map_peru |> dplyr::select(IDDPTO, DEPARTAMEN) |>
+      as_tibble() |> dplyr::select(-geometry),
+    by = "IDDPTO"
+  )
+```
+
+We add labels to the columns:
+```{r, eval=FALSE}
+weather_regions_df <- 
+  weather_regions_df |> 
+  labelled::set_variable_labels(
+    year = "Year",
+    month = "Month",
+    temp_min = "Min. Temperature",
+    temp_max = "Max. Temperature",
+    temp_mean = "Mean Temperature",
+    precip_sum = "Total Rainfall (Chirps)",
+    precip_piscop_sum = "Total Rainfall (Piscop)",
+    perc_gamma_precip = "Precipitation Shock (Percentile from Gamma Dist., Chirps)",
+    perc_gamma_precip_piscop = "Precipitation Shock (Percentile from Gamma Dist., Piscop)",
+    temp_min_dev = "Deviation of Min. Temperature from Normals",
+    temp_max_dev = "Deviation of Max. Temperature from Normals",
+    temp_mean_dev = "Deviation of Mean Temperature from Normals",
+    precip_sum_dev = "Deviation of Total Rainfall from Normals (Chirps)",
+    precip_piscop_sum_dev = "Deviation of Total Rainfall from Normals (Piscop)",
+    gdd_rice = "Degree Days",
+    gdd_maize = "Degree Days",
+    gdd_potato = "Degree Days",
+    gdd_cassava = "Degree Days",
+    hdd_rice = "Harmful Degree Days",
+    hdd_maize = "Harmful Degree Days",
+    hdd_potato = "Harmful Degree Days",
+    hdd_cassava = "Harmful Degree Days",
+    gdd_rice_dev = "Deviation of Degree Days from Normals",
+    gdd_maize_dev = "Deviation of Degree Days from Normals",
+    gdd_potato_dev = "Deviation of Degree Days from Normals",
+    gdd_cassava_dev = "Deviation of Degree Days from Normals",
+    hdd_rice_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_maize_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_potato_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_cassava_dev = "Deviation of Harmful Degree Days from Normals",
+    spi_1 = "SPI Index (scale = 1)",
+    spi_3 = "SPI Index (scale = 3)",
+    spi_6 = "SPI Index (scale = 6)",
+    spi_12 = "SPI Index (scale = 12)",
+    spei_1 = "SPEI Index (scale = 1)",
+    spei_3 = "SPEI Index (scale = 3)",
+    spei_6 = "SPEI Index (scale = 6)",
+    spei_12 = "SPEI Index (scale = 12)",
+    spi_piscop_1 = "SPI Index (scale = 1)",
+    spi_piscop_3 = "SPI Index (scale = 3)",
+    spi_piscop_6 = "SPI Index (scale = 6)",
+    spi_piscop_12 = "SPI Index (scale = 12)",
+    spei_piscop_1 = "SPEI Index (scale = 1)",
+    spei_piscop_3 = "SPEI Index (scale = 3)",
+    spei_piscop_6 = "SPEI Index (scale = 6)",
+    spei_piscop_12 = "SPEI Index (scale = 12)",
+    cold_surprise_maize = "Cold Surprise Weather", 
+    cold_surprise_rice = "Cold Surprise Weather", 
+    cold_surprise_potato = "Cold Surprise Weather", 
+    cold_surprise_cassava = "Cold Surprise Weather",
+    hot_surprise_maize = "Hot Surprise Weather",
+    hot_surprise_rice = "Hot Surprise Weather",
+    hot_surprise_potato = "Hot Surprise Weather",
+    hot_surprise_cassava = "Hot Surprise Weather",
+    dry_surprise_maize = "Dry Surprise Weather", 
+    dry_surprise_rice = "Dry Surprise Weather", 
+    dry_surprise_potato = "Dry Surprise Weather", 
+    dry_surprise_cassava = "Dry Surprise Weather",
+    wet_surprise_maize = "Wet Surprise Weather",
+    wet_surprise_rice = "Wet Surprise Weather",
+    wet_surprise_potato = "Wet Surprise Weather",
+    wet_surprise_cassava = "Wet Surprise Weather",
+    IDDPTO = "Region ID",
+    DEPARTAMEN = "Region Name"
+  )
+```
+
+
+And the results are saved:
+
+```{r, eval=FALSE}
+save(
+  weather_regions_df,
+  file = "../data/output/weather/weather_regions_df.rda"
+)
+```
+
+```{r, echo=FALSE}
+load("../data/output/weather/weather_regions_df.rda")
+```
+
+Some monthly statistics over the period can be computed.
+```{r}
+monthly_temp_peru_monthly_avg <- 
+  weather_regions_df |> 
+  dplyr::group_by(month) |> 
+  dplyr::summarise(
+    across(
+      .cols = c(
+        "temp_min", "temp_max", "temp_mean", "precip_sum", "precip_piscop_sum",
+        "perc_gamma_precip", "perc_gamma_precip_piscop",
+        "temp_min_dev", "temp_max_dev", "temp_mean_dev",
+        "precip_sum_dev", "precip_piscop_sum_dev",
+        "gdd_rice", "gdd_maize", "gdd_potato", "gdd_cassava",
+        "hdd_rice", "hdd_maize","hdd_potato", "hdd_cassava"
+      ),
+      .fns = list(mean = mean, sd = sd)
+    )
+  )
+```
+
+
+Let us have a look at average values:
+
+::: {.panel-tabset}
+
+### Mean temp.
+
+```{r}
+#| fig-cap: Average monthly temperatures in Peru (1988-2015)
+#| label: fig-avg-monthly-temp-peru
+#| code-fold: true
+ggplot(data = monthly_temp_peru_monthly_avg |> 
+         mutate(
+           month = month.abb[month],
+           month = factor(month, levels = month.abb)
+         )
+) +
+  geom_bar(
+    mapping = aes(x = month, y = temp_mean_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = month,
+      ymin = temp_mean_mean - temp_mean_sd,
+      ymax = temp_mean_mean + temp_mean_sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Min temp.
+
+```{r}
+#| fig-cap: Average monthly minimum temperatures in Peru (1988-2015)
+#| label: fig-avg-monthly-min-temp-peru
+#| code-fold: true
+ggplot(data = monthly_temp_peru_monthly_avg |> 
+         mutate(
+           month = month.abb[month],
+           month = factor(month, levels = month.abb)
+         )
+) +
+  geom_bar(
+    mapping = aes(x = month, y = temp_min_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = month,
+      ymin = temp_min_mean - temp_min_sd,
+      ymax = temp_min_mean + temp_min_sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Max temp.
+
+```{r}
+#| fig-cap: Average monthly maximum temperatures in Peru (1988-2015)
+#| label: fig-avg-monthly-max-temp-peru
+#| code-fold: true
+ggplot(data = monthly_temp_peru_monthly_avg |> 
+         mutate(
+           month = month.abb[month],
+           month = factor(month, levels = month.abb)
+         )
+) +
+  geom_bar(
+    mapping = aes(x = month, y = temp_max_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = month,
+      ymin = temp_max_mean - temp_max_sd,
+      ymax = temp_max_mean + temp_max_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Precipitation (Chirps)
+
+```{r}
+#| fig-cap: Average monthly precipitation in Peru (1988-2015)
+#| label: fig-avg-monthly-precip-peru
+#| code-fold: true
+ggplot(data = monthly_temp_peru_monthly_avg |> 
+         mutate(
+           month = month.abb[month],
+           month = factor(month, levels = month.abb)
+         )
+) +
+  geom_bar(
+    mapping = aes(x = month, y = precip_sum_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = month,
+      ymin = precip_sum_mean - precip_sum_sd,
+      ymax = precip_sum_mean + precip_sum_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Precipiation (mm)"
+  )
+```
+
+### Precipitation (Piscop)
+
+```{r}
+#| fig-cap: Average monthly precipitation in Peru (1988-2015)
+#| label: fig-avg-monthly-precip-piscop-peru
+#| code-fold: true
+ggplot(data = monthly_temp_peru_monthly_avg |> 
+         mutate(
+           month = month.abb[month],
+           month = factor(month, levels = month.abb)
+         )
+) +
+  geom_bar(
+    mapping = aes(x = month, y = precip_piscop_sum_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = month,
+      ymin = precip_piscop_sum_mean - precip_piscop_sum_sd,
+      ymax = precip_piscop_sum_mean + precip_piscop_sum_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Precipiation (mm)"
+  )
+```
+
+### Degree Days
+
+```{r}
+#| fig-cap: Average monthly Degree Days in Peru (1988-2015)
+#| label: fig-avg-monthly-gdd-piscop-peru
+#| code-fold: true
+ggplot(
+  data = monthly_temp_peru_monthly_avg |> 
+    mutate(
+      month = month.abb[month],
+      month = factor(month, levels = month.abb)
+    ) |> 
+    dplyr::select(
+      month,
+      gdd_rice_mean, gdd_rice_sd, 
+      gdd_maize_mean, gdd_maize_sd,
+      gdd_potato_mean, gdd_potato_sd,
+      gdd_cassava_mean, gdd_cassava_sd
+    ) |> 
+    pivot_longer(cols = c(-month)) |> 
+    mutate(
+      culture = str_extract(name, "gdd_(.*)_") |> 
+        str_remove("^gdd_") |> 
+        str_remove("_$"),
+      culture = factor(
+        culture, 
+        levels = c("rice", "maize", "potato", "cassava"),
+        labels = c("Rice", "Maize", "Potato", "Cassava")
+      )
+    ) |> 
+    mutate(name = ifelse(str_detect(name, "_mean$"), "mean", "sd")) |> 
+    pivot_wider(names_from = name, values_from = value)
+) +
+  geom_bar(
+    mapping = aes(x = month, y = mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = month,
+      ymin = mean - sd,
+      ymax = mean + sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(x = NULL, y = "Degree Days") +
+  facet_wrap(~culture)
+```
+
+### Harmful Degree Days
+
+```{r}
+#| fig-cap: Average monthly Harmful Degree Days in Peru (1988-2015)
+#| label: fig-avg-monthly-hdd-piscop-peru
+#| code-fold: true
+ggplot(
+  data = monthly_temp_peru_monthly_avg |> 
+    mutate(
+      month = month.abb[month],
+      month = factor(month, levels = month.abb)
+    ) |> 
+    dplyr::select(
+      month,
+      hdd_rice_mean, hdd_rice_sd, 
+      hdd_maize_mean, hdd_maize_sd,
+      hdd_potato_mean, hdd_potato_sd,
+      hdd_cassava_mean, hdd_cassava_sd
+    ) |> 
+    pivot_longer(cols = c(-month)) |> 
+    mutate(
+      culture = str_extract(name, "hdd_(.*)_") |> 
+        str_remove("^hdd_") |> 
+        str_remove("_$"),
+      culture = factor(
+        culture, 
+        levels = c("rice", "maize", "potato", "cassava"),
+        labels = c("Rice", "Maize", "Potato", "Cassava")
+      )
+    ) |> 
+    mutate(name = ifelse(str_detect(name, "_mean$"), "mean", "sd")) |> 
+    pivot_wider(names_from = name, values_from = value)
+) +
+  geom_bar(
+    mapping = aes(x = month, y = mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = month,
+      ymin = mean - sd,
+      ymax = mean + sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(x = NULL, y = "Harmful Degree Days") +
+  facet_wrap(~culture)
+```
+
+
+:::
+
+
+
+Now, let us make some choropleth maps with the weather values. First, we define a tibble with the values for 2010 only.
+```{r}
+map_peru_regional_weather <- 
+  map_peru |> 
+  left_join(
+    weather_regions_df |> 
+      dplyr::mutate(
+        month = factor(month.abb[month], levels = month.abb)) |> 
+      filter(year == 2010)
+  )
+```
+
+::: {.panel-tabset}
+
+
+### Mean temp.
+
+```{r}
+#| fig-cap: Regional mean temperatures in Peru - 2010
+#| label: fig-map-mean-temp-regions
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_mean,
+    probs = seq(0,1, by = .1),
+    na.rm=TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather |> filter(!is.na(month)),
+    mapping = aes(fill = temp_mean),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~month, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+### Min temp.
+
+```{r}
+#| fig-cap: Regional minimum temperatures in Peru - 2010
+#| label: fig-map-min-temp-regions
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_min,
+    probs = seq(0,1, by = .1),
+    na.rm=TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather |> filter(!is.na(month)),
+    mapping = aes(fill = temp_min),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~month, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+### Max temp.
+
+```{r}
+#| fig-cap: Regional maximum temperatures in Peru - 2010
+#| label: fig-map-max-temp-regions
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_max,
+    probs = seq(0,1, by = .1),
+    na.rm=TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather |> filter(!is.na(month)),
+    mapping = aes(fill = temp_max),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~month, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+
+### Precipitation (Chirps)
+
+```{r}
+#| fig-cap: Regional precipitation in Peru - 2010
+#| label: fig-map-precip-regions
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$precip_sum,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+cols <- rainbow(6)
+cols <- cols[-length(cols)]
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = precip_sum),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Rainfall (mm/month)", 
+    low = "white", high = "#005A8B", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_wrap(~month, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+
+### Precipitation (Piscop)
+
+```{r}
+#| fig-cap: Regional precipitation in Peru - 2010
+#| label: fig-map-precip-piscop-regions
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$precip_piscop_sum,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+cols <- rainbow(6)
+cols <- cols[-length(cols)]
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = precip_piscop_sum),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Rainfall (mm/month)", 
+    low = "white", high = "#005A8B", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_wrap(~month, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+### Degree Days
+
+```{r}
+#| fig-cap: Regional Degree Days in Peru - 2010
+#| label: fig-map-gdd-piscop-regions
+#| code-fold: true
+map_peru_regional_weather_gdd <- 
+  map_peru_regional_weather |> 
+  dplyr::select(
+    month,
+    gdd_rice,
+    gdd_maize,
+    gdd_potato,
+    gdd_cassava
+  ) |> 
+  pivot_longer(cols = c(-month, -geometry)) |> 
+  mutate(
+    culture = str_remove(name, "^gdd_") |> str_remove("_$"),
+    culture = factor(
+      culture, 
+      levels = c("rice", "maize", "potato", "cassava"),
+      labels = c("Rice", "Maize", "Potato", "Cassava")
+    )
+  )
+
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather_gdd$value,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather_gdd,
+    mapping = aes(fill = value),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Degree Days", 
+    low = "white", high = "#882255", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_grid(culture~month)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+### Hamrful Degree Days
+
+```{r}
+#| fig-cap: Regional Harmful Degree Days in Peru - 2010
+#| label: fig-map-hdd-piscop-regions
+#| code-fold: true
+map_peru_regional_weather_hdd <- 
+  map_peru_regional_weather |> 
+  dplyr::select(
+    month,
+    hdd_rice,
+    hdd_maize,
+    hdd_potato,
+    hdd_cassava
+  ) |> 
+  pivot_longer(cols = c(-month, -geometry)) |> 
+  mutate(
+    culture = str_remove(name, "^hdd_") |> str_remove("_$"),
+    culture = factor(
+      culture, 
+      levels = c("rice", "maize", "potato", "cassava"),
+      labels = c("Rice", "Maize", "Potato", "Cassava")
+    )
+  )
+
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather_hdd$value,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather_hdd,
+    mapping = aes(fill = value),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Harmful Degree Days", 
+    low = "white", high = "#882255", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_grid(culture~month)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+:::
+
+
+## Aggregation at the (quarterly) regional level
+
+
+We now proceed to aggregate the quarterly values of each grid cell to the scale of administrative regions.
+
+We focus on the following weather variables:
+```{r, eval=FALSE}
+weather_variables <- c(
+  "temp_min", "temp_max", "temp_mean", "precip_sum", "precip_piscop_sum",
+  "perc_gamma_precip", "perc_gamma_precip_piscop",
+  "gdd_rice", "gdd_maize", "gdd_potato", "gdd_cassava",
+  "hdd_rice", "hdd_maize", "hdd_potato", "hdd_cassava",
+  "temp_min_dev", "temp_max_dev", "temp_mean_dev",
+  "precip_sum_dev", "precip_piscop_sum_dev",
+  "gdd_rice_dev", "gdd_maize_dev", "gdd_potato_dev", "gdd_cassava_dev",
+  "hdd_rice_dev", "hdd_maize_dev","hdd_potato_dev", "hdd_cassava_dev"
+)
+```
+
+
+We define a function, `aggregate_quarter_region_i()`{.R}, to perform the aggregation for a specific region.
+```{r, eval=FALSE}
+#' Aggregates the weather data at the quarterly region level
+#' @description For a specific region, the grid cells within that region are
+#'   first identified. Then, the area of the intersection between each grid cell
+#'   and the region are computed. The share of agricultural lands in each cell
+#'   is also computed. Combined together, the area of the intersection and the
+#'   agricultural share are used as weights to aggregate the data at the
+#'   regional level.
+#'
+#' @param i row index of the region in `map_peru`
+#' @param weather_variables vector of name of the weather variables to aggregate
+aggregate_quarter_region_i <- function(i, weather_variables) {
+  map_region_i <- map_peru[i,]
+  tmp <- 
+    sf::st_intersection(map_peru_grid_agri, map_region_i) |> 
+    # Get the area of the intersection between the polygon of the current
+    # region and each grid cell that intersects it
+    dplyr::mutate(area_cell_intersect = sf::st_area(geometry)) |> 
+    dplyr::rename(grid_id = i) |> 
+    # Get the weather data for the corresponding grid cells
+    dplyr::left_join(
+      quarterly_weather_data,
+      by = "grid_id"
+    ) |> 
+    dplyr::filter(!is.na(year)) |> 
+    # Remove the unit in the area (squared metres)
+    dplyr::mutate(
+      area_cell_intersect = units::drop_units(area_cell_intersect)
+    ) |> 
+    dplyr::group_by(quarter, year) |> 
+    # Compute the weights to attribute to each grid cell
+    dplyr::mutate(
+      w_cropland = cropland / sum(cropland),
+      w_area     = area_cell_intersect / sum(area_cell_intersect),
+      w          = w_cropland * w_area,
+      w          = w / sum(w)) |> 
+    # Weighted weather variables
+    dplyr::mutate(
+      dplyr::across(
+        .cols = !!weather_variables,
+        .fns = ~ .x * w
+      )
+    ) |> 
+    dplyr::select(-geometry) |> 
+    tibble::as_tibble() |> 
+    dplyr::group_by(year, quarter) |> 
+    dplyr::select(-geometry) |> 
+    tibble::as_tibble() |> 
+    dplyr::group_by(year, quarter) |> 
+    dplyr::summarise(
+      dplyr::across(
+        .cols = !!weather_variables,
+        .fns = ~sum(.x, na.rm = TRUE)
+      ),
+      .groups = "drop"
+    ) |> 
+    dplyr::mutate(IDDPTO = map_region_i$IDDPTO)
+}
+```
+
+
+Then, we apply the `aggregate_quarter_region_i()`{.R} function to each region:
+```{r, eval=FALSE}
+weather_quarter_regions_df <- 
+  map(
+    .x = seq_len(nrow(map_peru)),
+    .f = ~aggregate_quarter_region_i(.x, weather_variables), 
+    .progress = TRUE
+  )
+```
+
+
+We add the department name:
+```{r, eval=FALSE}
+weather_quarter_regions_df <- 
+  weather_quarter_regions_df |> 
+  list_rbind() |> 
+  left_join(
+    map_peru |> dplyr::select(IDDPTO, DEPARTAMEN) |>
+      as_tibble() |> dplyr::select(-geometry),
+    by = "IDDPTO"
+  )
+```
+
+We add labels to the columns:
+```{r, eval=FALSE}
+weather_quarter_regions_df <- 
+  weather_quarter_regions_df |> 
+  labelled::set_variable_labels(
+    year = "Year",
+    quarter = "Quarter",
+    temp_min = "Min. Temperature",
+    temp_max = "Max. Temperature",
+    temp_mean = "Mean Temperature",
+    precip_sum = "Total Rainfall (Chirps)",
+    precip_piscop_sum = "Total Rainfall (Piscop)",
+    perc_gamma_precip = "Precipitation Shock (Percentile from Gamma Dist., Chirps)",
+    perc_gamma_precip_piscop = "Precipitation Shock (Percentile from Gamma Dist., Piscop)",
+    temp_min_dev = "Deviation of Min. Temperature from Normals",
+    temp_max_dev = "Deviation of Max. Temperature from Normals",
+    temp_mean_dev = "Deviation of Mean Temperature from Normals",
+    precip_sum_dev = "Deviation of Total Rainfall from Normals (Chirps)",
+    precip_piscop_sum_dev = "Deviation of Total Rainfall from Normals (Piscop)",
+    gdd_rice = "Degree Days",
+    gdd_maize = "Degree Days",
+    gdd_potato = "Degree Days",
+    gdd_cassava = "Degree Days",
+    hdd_rice = "Harmful Degree Days",
+    hdd_maize = "Harmful Degree Days",
+    hdd_potato = "Harmful Degree Days",
+    hdd_cassava = "Harmful Degree Days",
+    gdd_rice_dev = "Deviation of Degree Days from Normals",
+    gdd_maize_dev = "Deviation of Degree Days from Normals",
+    gdd_potato_dev = "Deviation of Degree Days from Normals",
+    gdd_cassava_dev = "Deviation of Degree Days from Normals",
+    hdd_rice_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_maize_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_potato_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_cassava_dev = "Deviation of Harmful Degree Days from Normals",
+    IDDPTO = "Region ID",
+    DEPARTAMEN = "Region Name"
+  )
+```
+
+
+And the results are saved:
+
+```{r, eval=FALSE}
+save(
+  weather_quarter_regions_df,
+  file = "../data/output/weather/weather_quarter_regions_df.rda"
+)
+```
+
+```{r, echo=FALSE}
+load("../data/output/weather/weather_quarter_regions_df.rda")
+```
+
+Some monthly statistics over the period can be computed.
+```{r}
+quarterly_temp_peru_quarterly_avg <- 
+  weather_quarter_regions_df |> 
+  dplyr::group_by(quarter) |> 
+  dplyr::summarise(
+    across(
+      .cols = c(
+        "temp_min", "temp_max", "temp_mean", "precip_sum", "precip_piscop_sum",
+        "perc_gamma_precip", "perc_gamma_precip_piscop",
+        "temp_min_dev", "temp_max_dev", "temp_mean_dev",
+        "precip_sum_dev", "precip_piscop_sum_dev",
+        "gdd_rice", "gdd_maize", "gdd_potato", "gdd_cassava",
+        "hdd_rice", "hdd_maize","hdd_potato", "hdd_cassava"
+      ),
+      .fns = list(mean = mean, sd = sd)
+    )
+  )
+```
+
+
+Let us have a look at average values:
+
+::: {.panel-tabset}
+
+### Mean temp.
+
+```{r}
+#| fig-cap: Average quarterly temperatures in Peru (1988-2015)
+#| label: fig-avg-quarterly-temp-peru
+#| code-fold: true
+ggplot(data = quarterly_temp_peru_quarterly_avg |> 
+         mutate(
+           quarter = factor(quarter, levels = 1:4, labels = str_c("Q", 1:4))
+         )
+) +
+  geom_bar(
+    mapping = aes(x = quarter, y = temp_mean_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = quarter,
+      ymin = temp_mean_mean - temp_mean_sd,
+      ymax = temp_mean_mean + temp_mean_sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Min temp.
+
+```{r}
+#| fig-cap: Average quarterly minimum temperatures in Peru (1988-2015)
+#| label: fig-avg-quarterly-min-temp-peru
+#| code-fold: true
+ggplot(data = quarterly_temp_peru_quarterly_avg |> 
+         mutate(
+           quarter = factor(quarter, levels = 1:4, labels = str_c("Q", 1:4))
+         )
+) +
+  geom_bar(
+    mapping = aes(x = quarter, y = temp_min_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = quarter,
+      ymin = temp_min_mean - temp_min_sd,
+      ymax = temp_min_mean + temp_min_sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Max temp.
+
+```{r}
+#| fig-cap: Average quarterly maximum temperatures in Peru (1988-2015)
+#| label: fig-avg-quarterly-max-temp-peru
+#| code-fold: true
+ggplot(data = quarterly_temp_peru_quarterly_avg |> 
+         mutate(
+           quarter = factor(quarter, levels = 1:4, labels = str_c("Q", 1:4))
+         )
+) +
+  geom_bar(
+    mapping = aes(x = quarter, y = temp_max_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = quarter,
+      ymin = temp_max_mean - temp_max_sd,
+      ymax = temp_max_mean + temp_max_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Precipitation (Chirps)
+
+```{r}
+#| fig-cap: Average quarterly precipitation in Peru (1988-2015)
+#| label: fig-avg-quarterly-precip-peru
+#| code-fold: true
+ggplot(data = quarterly_temp_peru_quarterly_avg |> 
+         mutate(
+           quarter = factor(quarter, levels = 1:4, labels = str_c("Q", 1:4))
+         )
+) +
+  geom_bar(
+    mapping = aes(x = quarter, y = precip_sum_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = quarter,
+      ymin = precip_sum_mean - precip_sum_sd,
+      ymax = precip_sum_mean + precip_sum_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Precipiation (mm)"
+  )
+```
+
+### Precipitation (Piscop)
+
+```{r}
+#| fig-cap: Average quarterly precipitation in Peru (1988-2015)
+#| label: fig-avg-quarterly-precip-piscop-peru
+#| code-fold: true
+ggplot(data = quarterly_temp_peru_quarterly_avg |> 
+         mutate(
+           quarter = factor(quarter, levels = 1:4, labels = str_c("Q", 1:4))
+         )
+) +
+  geom_bar(
+    mapping = aes(x = quarter, y = precip_piscop_sum_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = quarter,
+      ymin = precip_piscop_sum_mean - precip_piscop_sum_sd,
+      ymax = precip_piscop_sum_mean + precip_piscop_sum_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Precipiation (mm)"
+  )
+```
+
+### Degree Days
+
+```{r}
+#| fig-cap: Average quarterly Degree Days in Peru (1988-2015)
+#| label: fig-avg-quarterly-gdd-peru
+#| code-fold: true
+ggplot(
+  data = quarterly_temp_peru_quarterly_avg |> 
+    mutate(
+      quarter = factor(quarter, levels = 1:4, labels = str_c("Q", 1:4))
+    ) |> 
+    dplyr::select(
+      quarter,
+      gdd_rice_mean, gdd_rice_sd, 
+      gdd_maize_mean, gdd_maize_sd,
+      gdd_potato_mean, gdd_potato_sd,
+      gdd_cassava_mean, gdd_cassava_sd
+    ) |> 
+    pivot_longer(cols = c(-quarter)) |> 
+    mutate(
+      culture = str_extract(name, "gdd_(.*)_") |> 
+        str_remove("^gdd_") |> 
+        str_remove("_$"),
+      culture = factor(
+        culture, 
+        levels = c("rice", "maize", "potato", "cassava"),
+        labels = c("Rice", "Maize", "Potato", "Cassava")
+      )
+    ) |> 
+    mutate(name = ifelse(str_detect(name, "_mean$"), "mean", "sd")) |> 
+    pivot_wider(names_from = name, values_from = value)
+) +
+  geom_bar(
+    mapping = aes(x = quarter, y = mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = quarter,
+      ymin = mean - sd,
+      ymax = mean + sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(x = NULL, y = "Degree Days") +
+  facet_wrap(~culture)
+```
+
+### Harmful Degree Days
+
+```{r}
+#| fig-cap: Average quarterly Harmful Degree Days in Peru (1988-2015)
+#| label: fig-avg-quarterly-hdd-peru
+#| code-fold: true
+ggplot(
+  data = quarterly_temp_peru_quarterly_avg |> 
+    mutate(
+      quarter = factor(quarter, levels = 1:4, labels = str_c("Q", 1:4))
+    ) |> 
+    dplyr::select(
+      quarter,
+      hdd_rice_mean, hdd_rice_sd, 
+      hdd_maize_mean, hdd_maize_sd,
+      hdd_potato_mean, hdd_potato_sd,
+      hdd_cassava_mean, hdd_cassava_sd
+    ) |> 
+    pivot_longer(cols = c(-quarter)) |> 
+    mutate(
+      culture = str_extract(name, "hdd_(.*)_") |> 
+        str_remove("^hdd_") |> 
+        str_remove("_$"),
+      culture = factor(
+        culture, 
+        levels = c("rice", "maize", "potato", "cassava"),
+        labels = c("Rice", "Maize", "Potato", "Cassava")
+      )
+    ) |> 
+    mutate(name = ifelse(str_detect(name, "_mean$"), "mean", "sd")) |> 
+    pivot_wider(names_from = name, values_from = value)
+) +
+  geom_bar(
+    mapping = aes(x = quarter, y = mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = quarter,
+      ymin = mean - sd,
+      ymax = mean + sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(x = NULL, y = "Harmful Degree Days") +
+  facet_wrap(~culture)
+```
+
+:::
+
+
+
+Now, let us make some choropleth maps with the weather values. First, we define a tibble with the values for 2010 only.
+```{r}
+map_peru_regional_weather <- 
+  map_peru |> 
+  left_join(
+    weather_quarter_regions_df |> 
+      dplyr::mutate(
+        quarter = factor(quarter, levels = 1:4, labels = str_c("Q", 1:4))
+      ) |> 
+      filter(year == 2010)
+  )
+```
+
+::: {.panel-tabset}
+
+
+### Mean temp.
+
+```{r}
+#| fig-cap: Regional mean temperatures in Peru - 2010
+#| label: fig-map-mean-temp-regions-quarterly
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_mean,
+    probs = seq(0,1, by = .1),
+    na.rm=TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather |> filter(!is.na(quarter)),
+    mapping = aes(fill = temp_mean),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~quarter, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+### Min temp.
+
+```{r}
+#| fig-cap: Regional minimum temperatures in Peru - 2010
+#| label: fig-map-min-temp-regions-quarterly
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_min,
+    probs = seq(0,1, by = .1),
+    na.rm = TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather |> filter(!is.na(quarter)),
+    mapping = aes(fill = temp_min),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~quarter, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+### Max temp.
+
+```{r}
+#| fig-cap: Regional maximum temperatures in Peru - 2010
+#| label: fig-map-max-temp-regions-quarterly
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_max,
+    probs = seq(0,1, by = .1),
+    na.rm=TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather |> filter(!is.na(quarter)),
+    mapping = aes(fill = temp_max),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~quarter, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+
+### Precipitation
+
+```{r}
+#| fig-cap: Regional precipitation in Peru - 2010
+#| label: fig-map-precip-regions-quarterly
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$precip_sum,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+cols <- rainbow(6)
+cols <- cols[-length(cols)]
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = precip_sum),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Rainfall (mm/quarter)", 
+    low = "white", high = "#005A8B", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_wrap(~quarter, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+
+### Precipitation (piscop)
+
+```{r}
+#| fig-cap: Regional precipitation in Peru - 2010
+#| label: fig-map-precip-piscop-regions-quarterly
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$precip_piscop_sum,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+cols <- rainbow(6)
+cols <- cols[-length(cols)]
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = precip_piscop_sum),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Rainfall (mm/quarter)", 
+    low = "white", high = "#005A8B", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_wrap(~quarter, ncol = 4)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+### Degree Days
+
+```{r}
+#| fig-cap: Regional Degree Days in Peru - 2010
+#| label: fig-map-gdd-regions-quarterly
+#| code-fold: true
+map_peru_regional_weather_gdd <- 
+  map_peru_regional_weather |> 
+  dplyr::select(
+    quarter,
+    gdd_rice,
+    gdd_maize,
+    gdd_potato,
+    gdd_cassava
+  ) |> 
+  pivot_longer(cols = c(-quarter, -geometry)) |> 
+  mutate(
+    culture = str_remove(name, "^gdd_") |> str_remove("_$"),
+    culture = factor(
+      culture, 
+      levels = c("rice", "maize", "potato", "cassava"),
+      labels = c("Rice", "Maize", "Potato", "Cassava")
+    )
+  )
+
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather_gdd$value,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather_gdd,
+    mapping = aes(fill = value),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Degree Days", 
+    low = "white", high = "#882255", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_grid(culture~quarter)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+### Harmful Degree Days
+
+```{r}
+#| fig-cap: Regional Harmful Degree Days in Peru - 2010
+#| label: fig-map-hdd-regions-quarterly
+#| code-fold: true
+map_peru_regional_weather_hdd <- 
+  map_peru_regional_weather |> 
+  dplyr::select(
+    quarter,
+    hdd_rice,
+    hdd_maize,
+    hdd_potato,
+    hdd_cassava
+  ) |> 
+  pivot_longer(cols = c(-quarter, -geometry)) |> 
+  mutate(
+    culture = str_remove(name, "^hdd_") |> str_remove("_$"),
+    culture = factor(
+      culture, 
+      levels = c("rice", "maize", "potato", "cassava"),
+      labels = c("Rice", "Maize", "Potato", "Cassava")
+    )
+  )
+
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather_hdd$value,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather_hdd,
+    mapping = aes(fill = value),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Harmful Degree Days", 
+    low = "white", high = "#882255", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_grid(culture~quarter)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+:::
+
+
+## Aggregation at the (annual) regional level
+
+
+We now proceed to aggregate the annual values of each grid cell to the scale of administrative regions.
+
+We focus on the following weather variables:
+```{r, eval=FALSE}
+weather_variables <- c(
+  "temp_min", "temp_max", "temp_mean", "precip_sum", "precip_piscop_sum",
+  "perc_gamma_precip", "perc_gamma_precip_piscop",
+  "gdd_rice", "gdd_maize", "gdd_potato", "gdd_cassava",
+  "hdd_rice", "hdd_maize", "hdd_potato", "hdd_cassava",
+  "temp_min_dev", "temp_max_dev", "temp_mean_dev",
+  "precip_sum_dev", "precip_piscop_sum_dev",
+  "gdd_rice_dev", "gdd_maize_dev", "gdd_potato_dev", "gdd_cassava_dev",
+  "hdd_rice_dev", "hdd_maize_dev","hdd_potato_dev", "hdd_cassava_dev"
+)
+```
+
+
+We define a function, `aggregate_annual_region_i()`{.R}, to perform the aggregation for a specific region.
+```{r, eval=FALSE}
+#' Aggregates the weather data at the annual region level
+#' @description For a specific region, the grid cells within that region are
+#'   first identified. Then, the area of the intersection between each grid cell
+#'   and the region are computed. The share of agricultural lands in each cell
+#'   is also computed. Combined together, the area of the intersection and the
+#'   agricultural share are used as weights to aggregate the data at the
+#'   regional level.
+#'
+#' @param i row index of the region in `map_peru`
+#' @param weather_variables vector of name of the weather variables to aggregate
+aggregate_annual_region_i <- function(i, weather_variables) {
+  map_region_i <- map_peru[i,]
+  tmp <- 
+    sf::st_intersection(map_peru_grid_agri, map_region_i) |> 
+    # Get the area of the intersection between the polygon of the current
+    # region and each grid cell that intersects it
+    dplyr::mutate(area_cell_intersect = sf::st_area(geometry)) |> 
+    dplyr::rename(grid_id = i) |> 
+    # Get the weather data for the corresponding grid cells
+    dplyr::left_join(
+      annual_weather_data,
+      by = "grid_id"
+    ) |> 
+    dplyr::filter(!is.na(year)) |> 
+    # Remove the unit in the area (squared metres)
+    dplyr::mutate(
+      area_cell_intersect = units::drop_units(area_cell_intersect)
+    ) |> 
+    dplyr::group_by(year) |> 
+    # Compute the weights to attribute to each grid cell
+    dplyr::mutate(
+      w_cropland = cropland / sum(cropland),
+      w_area     = area_cell_intersect / sum(area_cell_intersect),
+      w          = w_cropland * w_area,
+      w          = w / sum(w)) |> 
+    # Weighted weather variables
+    dplyr::mutate(
+      dplyr::across(
+        .cols = !!weather_variables,
+        .fns = ~ .x * w
+      )
+    ) |> 
+    dplyr::select(-geometry) |> 
+    tibble::as_tibble() |> 
+    dplyr::group_by(year) |> 
+    dplyr::select(-geometry) |> 
+    tibble::as_tibble() |> 
+    dplyr::group_by(year) |> 
+    dplyr::summarise(
+      dplyr::across(
+        .cols = !!weather_variables,
+        .fns = ~sum(.x, na.rm = TRUE)
+      ),
+      .groups = "drop"
+    ) |> 
+    dplyr::mutate(IDDPTO = map_region_i$IDDPTO)
+}
+```
+
+
+Then, we apply the `aggregate_quarter_region_i()`{.R} function to each region:
+```{r, eval=FALSE}
+weather_annual_regions_df <- 
+  map(
+    .x = seq_len(nrow(map_peru)),
+    .f = ~aggregate_annual_region_i(.x, weather_variables), 
+    .progress = TRUE
+  )
+```
+
+
+We add the department name:
+```{r, eval=FALSE}
+weather_annual_regions_df <- 
+  weather_annual_regions_df |> 
+  list_rbind() |> 
+  left_join(
+    map_peru |> dplyr::select(IDDPTO, DEPARTAMEN) |>
+      as_tibble() |> dplyr::select(-geometry),
+    by = "IDDPTO"
+  )
+```
+
+We add labels to the columns:
+```{r, eval=FALSE}
+weather_annual_regions_df <- 
+  weather_annual_regions_df |> 
+  labelled::set_variable_labels(
+    year = "Year",
+    temp_min = "Min. Temperature",
+    temp_max = "Max. Temperature",
+    temp_mean = "Mean Temperature",
+    precip_sum = "Total Rainfall (Chirps)",
+    precip_piscop_sum = "Total Rainfall (Piscop)",
+    perc_gamma_precip = "Precipitation Shock (Percentile from Gamma Dist., Chirps)",
+    perc_gamma_precip_piscop = "Precipitation Shock (Percentile from Gamma Dist., Piscop)",
+    temp_min_dev = "Deviation of Min. Temperature from Normals",
+    temp_max_dev = "Deviation of Max. Temperature from Normals",
+    temp_mean_dev = "Deviation of Mean Temperature from Normals",
+    precip_sum_dev = "Deviation of Total Rainfall from Normals (Chirps)",
+    precip_piscop_sum_dev = "Deviation of Total Rainfall from Normals (Piscop)",
+    gdd_rice = "Growing Degree Days",
+    gdd_maize = "Growing Degree Days",
+    gdd_potato = "Growing Degree Days",
+    gdd_cassava = "Growing Degree Days",
+    hdd_rice = "Harmful Degree Days",
+    hdd_maize = "Harmful Degree Days",
+    hdd_potato = "Harmful Degree Days",
+    hdd_cassava = "Harmful Degree Days",
+    gdd_rice_dev = "Deviation of Growing Degree Days from Normals",
+    gdd_maize_dev = "Deviation of Growing Degree Days from Normals",
+    gdd_potato_dev = "Deviation of Growing Degree Days from Normals",
+    gdd_cassava_dev = "Deviation of Growing Degree Days from Normals",
+    hdd_rice_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_maize_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_potato_dev = "Deviation of Harmful Degree Days from Normals",
+    hdd_cassava_dev = "Deviation of Harmful Degree Days from Normals",
+    IDDPTO = "Region ID",
+    DEPARTAMEN = "Region Name"
+  )
+```
+
+
+And the results are saved:
+
+```{r, eval=FALSE}
+save(
+  weather_annual_regions_df,
+  file = "../data/output/weather/weather_annual_regions_df.rda"
+)
+```
+
+```{r, echo=FALSE}
+load("../data/output/weather/weather_annual_regions_df.rda")
+```
+
+Some monthly statistics over the period can be computed.
+```{r}
+annual_temp_peru_annual_avg <- 
+  weather_annual_regions_df |> 
+  dplyr::group_by(year) |> 
+  dplyr::summarise(
+    across(
+      .cols = c(
+        "temp_min", "temp_max", "temp_mean", "precip_sum", "precip_piscop_sum",
+        "perc_gamma_precip", "perc_gamma_precip_piscop",
+        "temp_min_dev", "temp_max_dev", "temp_mean_dev",
+        "precip_sum_dev", "precip_piscop_sum_dev",
+        "gdd_rice", "gdd_maize", "gdd_potato", "gdd_cassava",
+        "hdd_rice", "hdd_maize","hdd_potato", "hdd_cassava"
+      ),
+      .fns = list(mean = mean, sd = sd)
+    )
+  )
+```
+
+
+Let us have a look at average values:
+
+::: {.panel-tabset}
+
+### Mean temp.
+
+```{r}
+#| fig-cap: Average annual temperatures in Peru (1988-2015)
+#| label: fig-avg-annual-temp-peru
+#| code-fold: true
+ggplot(data = annual_temp_peru_annual_avg) +
+  geom_bar(
+    mapping = aes(x = year, y = temp_mean_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = year,
+      ymin = temp_mean_mean - temp_mean_sd,
+      ymax = temp_mean_mean + temp_mean_sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Min temp.
+
+```{r}
+#| fig-cap: Average annual minimum temperatures in Peru (1988-2015)
+#| label: fig-avg-annual-min-temp-peru
+#| code-fold: true
+ggplot(data = annual_temp_peru_annual_avg) +
+  geom_bar(
+    mapping = aes(x = year, y = temp_min_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = year,
+      ymin = temp_min_mean - temp_min_sd,
+      ymax = temp_min_mean + temp_min_sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Max temp.
+
+```{r}
+#| fig-cap: Average annual maximum temperatures in Peru (1988-2015)
+#| label: fig-avg-annual-max-temp-peru
+#| code-fold: true
+ggplot(data = annual_temp_peru_annual_avg) +
+  geom_bar(
+    mapping = aes(x = year, y = temp_max_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = year,
+      ymin = temp_max_mean - temp_max_sd,
+      ymax = temp_max_mean + temp_max_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Temperatures (°C)"
+  ) +
+  scale_y_continuous(breaks = seq(0, 30, by = 2))
+```
+
+### Precipitation (Chirps)
+
+```{r}
+#| fig-cap: Average annual precipitation in Peru (1988-2015)
+#| label: fig-avg-annual-precip-peru
+#| code-fold: true
+ggplot(data = annual_temp_peru_annual_avg) +
+  geom_bar(
+    mapping = aes(x = year, y = precip_sum_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = year,
+      ymin = precip_sum_mean - precip_sum_sd,
+      ymax = precip_sum_mean + precip_sum_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Precipiation (mm)"
+  )
+```
+
+### Precipitation (Piscop)
+
+```{r}
+#| fig-cap: Average annual precipitation in Peru (1988-2015)
+#| label: fig-avg-annual-precip-piscop-peru
+#| code-fold: true
+ggplot(data = annual_temp_peru_annual_avg) +
+  geom_bar(
+    mapping = aes(x = year, y = precip_piscop_sum_mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = year,
+      ymin = precip_piscop_sum_mean - precip_piscop_sum_sd,
+      ymax = precip_piscop_sum_mean + precip_piscop_sum_sd
+    ),
+    width=0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(
+    x = NULL, y = "Precipiation (mm)"
+  )
+```
+
+### Degree Days
+
+```{r}
+#| fig-cap: Average annual Degree Days in Peru (1988-2015)
+#| label: fig-avg-annual-gdd-peru
+#| code-fold: true
+ggplot(
+  data = annual_temp_peru_annual_avg |> 
+    dplyr::select(
+      year,
+      gdd_rice_mean, gdd_rice_sd, 
+      gdd_maize_mean, gdd_maize_sd,
+      gdd_potato_mean, gdd_potato_sd,
+      gdd_cassava_mean, gdd_cassava_sd
+    ) |> 
+    pivot_longer(cols = c(-year)) |> 
+    mutate(
+      culture = str_extract(name, "gdd_(.*)_") |> 
+        str_remove("^gdd_") |> 
+        str_remove("_$"),
+      culture = factor(
+        culture, 
+        levels = c("rice", "maize", "potato", "cassava"),
+        labels = c("Rice", "Maize", "Potato", "Cassava")
+      )
+    ) |> 
+    mutate(name = ifelse(str_detect(name, "_mean$"), "mean", "sd")) |> 
+    pivot_wider(names_from = name, values_from = value)
+) +
+  geom_bar(
+    mapping = aes(x = year, y = mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = year,
+      ymin = mean - sd,
+      ymax = mean + sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(x = NULL, y = "Growing Degree Days") +
+  facet_wrap(~culture)
+```
+
+### Harmful Degree Days
+
+```{r}
+#| fig-cap: Average annual Harmful Degree Days in Peru (1988-2015)
+#| label: fig-avg-annual-hdd-peru
+#| code-fold: true
+ggplot(
+  data = annual_temp_peru_annual_avg |> 
+    dplyr::select(
+      year,
+      hdd_rice_mean, hdd_rice_sd, 
+      hdd_maize_mean, hdd_maize_sd,
+      hdd_potato_mean, hdd_potato_sd,
+      hdd_cassava_mean, hdd_cassava_sd
+    ) |> 
+    pivot_longer(cols = c(-year)) |> 
+    mutate(
+      culture = str_extract(name, "hdd_(.*)_") |> 
+        str_remove("^hdd_") |> 
+        str_remove("_$"),
+      culture = factor(
+        culture, 
+        levels = c("rice", "maize", "potato", "cassava"),
+        labels = c("Rice", "Maize", "Potato", "Cassava")
+      )
+    ) |> 
+    mutate(name = ifelse(str_detect(name, "_mean$"), "mean", "sd")) |> 
+    pivot_wider(names_from = name, values_from = value)
+) +
+  geom_bar(
+    mapping = aes(x = year, y = mean),
+    stat="identity",
+    fill="#5482AB", alpha=0.7
+  ) +
+  geom_errorbar(
+    mapping = aes(
+      x = year,
+      ymin = mean - sd,
+      ymax = mean + sd
+    ),
+    width = 0.4, colour = "#005A8B", alpha = 0.9, linewidth = 1.3
+  ) +
+  labs(x = NULL, y = "Harmful Degree Days") +
+  facet_wrap(~culture)
+```
+
+:::
+
+
+
+Now, let us make some choropleth maps with the weather values.
+```{r}
+map_peru_regional_weather <- 
+  map_peru |> 
+  left_join(weather_annual_regions_df)
+```
+
+::: {.panel-tabset}
+
+
+### Mean temp.
+
+```{r}
+#| fig-cap: Regional mean temperatures in Peru
+#| label: fig-map-mean-temp-regions-annual
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_mean,
+    probs = seq(0,1, by = .1),
+    na.rm=TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = temp_mean),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~year, ncol = 10)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+### Min temp.
+
+```{r}
+#| fig-cap: Regional minimum temperatures in Peru
+#| label: fig-map-min-temp-regions-annual
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_min,
+    probs = seq(0,1, by = .1),
+    na.rm = TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = temp_min),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~year, ncol = 10)
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+### Max temp.
+
+```{r}
+#| fig-cap: Regional maximum temperatures in Peru
+#| label: fig-map-max-temp-regions-annual
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$temp_max,
+    probs = seq(0,1, by = .1),
+    na.rm=TRUE
+  )
+)
+cols <- viridis::magma(6) |> rev()
+cols <- cols[-length(cols)]
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = temp_max),
+    colour = "white"
+  ) +
+  scale_fill_gradientn(name = "Temperature (°C)", colours = cols) +
+  facet_wrap(~year, ncol = 10)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p + guides(fill = guide_colorbar(barheight = panel_height))
+```
+
+
+### Precipitation
+
+```{r}
+#| fig-cap: Regional precipitation in Peru
+#| label: fig-map-precip-regions-annual
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$precip_sum,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+cols <- rainbow(6)
+cols <- cols[-length(cols)]
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = precip_sum),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Rainfall (mm/quarter)", 
+    low = "white", high = "#005A8B", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_wrap(~year, ncol = 10)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+
+### Precipitation (piscop)
+
+```{r}
+#| fig-cap: Regional precipitation in Peru
+#| label: fig-map-precip-piscop-regions-annual
+#| code-fold: true
+b <- as.numeric(
+  quantile(
+    map_peru_regional_weather$precip_piscop_sum,
+    probs = seq(0,1, by = .1)
+  )
+)
+
+cols <- rainbow(6)
+cols <- cols[-length(cols)]
+
+p <- 
+  ggplot() + 
+  geom_sf(
+    data = map_peru_regional_weather,
+    mapping = aes(fill = precip_piscop_sum),
+    colour = "white"
+  ) +
+  scale_fill_continuous(
+    "Rainfall (mm/quarter)", 
+    low = "white", high = "#005A8B", na.value = "grey50",
+    breaks = round(b), labels = round(b)
+  ) +
+  facet_wrap(~year, ncol = 10)
+
+panel_height <- unit(1,"npc") - 
+  sum(ggplotGrob(p)[["heights"]][-3]) - unit(1,"line")
+
+p_2 <- p + guides(fill = guide_colorbar(barheight = panel_height))
+p_2
+```
+
+:::
+
+
+## Content of the Dataset
+
+
+| Variable name | Type | Description |
+| :------------ | ---- | ----------- |
+| `year` | numeric | Year (YYYY) |
+| `month` | numeric | Month (MM) |
+| `quarter` | numeric | Quarter (1--4) |
+| `temp_min` | numeric | Monthly average of daily min temperature |
+| `temp_max` | numeric | Monthly average of daily max temperature |
+| `temp_mean` | numeric | Monthly average of daily mean temperature |
+| `precip_sum` | numeric | Monthly sum of daily rainfall |
+| `precip_piscop_sum` | numeric | Monthly sum of daily rainfall (Piscop) |
+| `perc_gamma_precip` | numeric | Percentile of the monthly precipitation (Estimated Gamma Distribution) |
+| `perc_gamma_precip_piscop` | numeric | Percentile of the monthly precipitation (Estimated Gamma Distribution, Piscop) |
+| `temp_min_dev` | numeric | Deviation of monthly min temperatures (`temp_min`) from climate normals (1986 -- 2015) |
+| `temp_max_dev` | numeric | Deviation of monthly max temperatures (`temp_max`) from climate normals (1986 -- 2015) |
+| `temp_mean_dev` | numeric | Deviation of monthly mean temperatures (`temp_mean`) from climate normals (1986 -- 2015) |
+| `precip_sum_dev` | numeric | Deviation of monthly total rainfall (`precip_sum`)
+from climate normals (1986 -- 2015) |
+| `precip_piscop_sum_dev` | numeric | Deviation of monthly total rainfall (`precip_sum`, Piscop)
+from climate normals (1986 -- 2015) |
+| `spi_1`, `spi_piscop_1` | numeric | SPI Drought Index, Scale = 1 |
+| `spi_3`, `spi_piscop_3` | numeric | SPI Drought Index, Scale = 3 |
+| `spi_6`, `spi_piscop_6` | numeric | SPI Drought Index, Scale = 6 |
+| `spi_12`, `spi_piscop_12` | numeric | SPI Drought Index, Scale = 12 |
+| `spei_1`, `spei_piscop_1` | numeric | SPEI Drought Index, Scale = 1 |
+| `spei_3`, `spei_piscop_3` | numeric | SPEI Drought Index, Scale = 3 |
+| `spei_6`, `spei_piscop_6` | numeric | SPEI Drought Index, Scale = 6 |
+| `spei_12`, `spei_piscop_12` | numeric | SPEI Drought Index, Scale = 12 |
+| `IDDPTO` | character | Region numerical ID |
+| `DEPARTAMEN` | character | Region name |
+
+: Variables in the `weather_regions_df.rda` file {#tbl-desc-variables-df-weather-regions}
+

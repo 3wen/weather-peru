@@ -1,0 +1,365 @@
+# Agricultural Production: Positive vs. Negative Surprise Shocks (LP) {#sec-lp-posvsnegsurprise}
+
+:::{.callout-note}
+
+## Objectives
+
+Estimate response functions of agricultural production following a positive or negative surprise weather shock, using Local Projections. The surprise weather shocks are defined following @natoli2024temperature.
+
+:::
+
+```{r}
+#| echo: false
+#| eval: true
+#| message: false
+#| warning: false
+colorize <- function(x, color) {
+  if (knitr::is_latex_output()) {
+    if (grep(x = color, "^#")) {
+      color <- deparse(substitute(color))
+    }
+    sprintf("\\textcolor{%s}{%s}", color, x)
+  } else if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'>%s</span>", color,
+            x)
+  } else x
+}
+
+wongBlack     <- "#000000"
+wongGold      <- "#E69F00"
+wongLightBlue <- "#56B4E9"
+wongGreen     <- "#009E73"
+wongYellow    <- "#F0E442"
+wongBlue      <- "#0072B2"
+wongOrange    <- "#D55E00"
+wongPurple    <- "#CC79A7"
+
+
+rouge <- "#D81B60"
+bleu <- "#1E88E5"
+jaune <- "#FFC107"
+vert <- "#004D40"
+highlight <- wongGold
+```
+
+$$
+\definecolor{bayesred}{RGB}{147, 30, 24}
+\definecolor{bayesblue}{RGB}{32, 35, 91}
+\definecolor{bayesorange}{RGB}{218, 120, 1}
+\definecolor{grey}{RGB}{128, 128, 128}
+\definecolor{couleur1}{RGB}{0,163,137}
+\definecolor{couleur2}{RGB}{255,124,0}
+\definecolor{couleur3}{RGB}{0, 110, 158}
+\definecolor{coul1}{RGB}{255,37,0}
+\definecolor{coul2}{RGB}{242,173,0}
+\definecolor{col_neg}{RGB}{155, 191, 221}
+\definecolor{col_pos}{RGB}{255, 128, 106}
+\definecolor{wongBlack}{RGB}{0,0,0}
+\definecolor{wongLightBlue}{RGB}{86, 180, 233}
+\definecolor{wongGold}{RGB}{230, 159, 0}
+\definecolor{wongGreen}{RGB}{0, 158, 115}
+\definecolor{wongYellow}{RGB}{240, 228, 66}
+\definecolor{wongBlue}{RGB}{0, 114, 178}
+\definecolor{wongOrange}{RGB}{213, 94, 0}
+\definecolor{wongPurple}{RGB}{204, 121, 167}
+\definecolor{IBMPurple}{RGB}{120, 94, 240}
+\definecolor{IBMMagenta}{RGB}{220, 38, 127}
+$$
+
+This chapter uses @jorda2005estimation Local Projection framework to measure how sensitive agricultural output is to exogenous changes in the weather. It complements [Chapter -@sec-lp-piscop] by testing alternative weather shock definitions.
+
+
+:::{.callout-note}
+
+## Reminder
+
+To differentiate the effects of positive and negative shocks, we defined two indicators for both temperature and precipitation: one for positive shocks and another for negative shocks (see @sec-weather-data-surprise-weather).
+    
+The idea is to compare the realized temperatures (or precipitation) in a given month $m$ of year $y$ at location $\ell$ with expected temperatures (precipitation) based on observations from the same month in previous years at the same location. The difference is defined as a surprise shock.
+
+For days hotter (wetter) than expected, the shock in cell $\ell$ is defined as:
+$$
+\begin{align}
+    W^{(+)}_{\ell,y,m, c} = \underbrace{\sum_{d=1}^{n_m} \mathrm{1}(\mathcal{W}_{\ell,y,m,d} > \text{ut}_{\ell,y,m, c})}_{\text{Climate realization}} - \underbrace{\frac{1}{5}\sum_{k=1}^{5}\sum_{d=1}^{n_m} \mathrm{1}(\mathcal{W}_{\ell,y-k,m,d} > \text{ut}_{\ell,y,m, c})}_{\text{Expected realization}},
+\end{align}
+$$
+where $\mathcal{W}_{\ell,y,m,d}$ is the daily average temperature (or total rainfall), $n_m$ is the number of days in month $m$, and $\text{ut}^{\mathcal{w}}_{\ell,y,m, c}$ is the threshold for hot days for crop $c$.
+
+Similarly, cold (dry) shocks are defined as:
+$$
+\begin{align}
+    W^{(-)}_{\ell,y,m,c} = \sum_{d=1}^{n_m} \mathrm{1}(\mathcal{W}_{\ell,y,m,d} < \text{lt}_{\ell,y,m, c}) - \frac{1}{5}\sum_{k=1}^{5}\sum_{d=1}^{n_m} \mathrm{1}(\mathcal{W}_{\ell,y-k,m,d} < \text{lt}_{\ell,y,m,c}),
+\end{align}
+$$
+where $\text{lt}_{\ell,y,m,c}$ is the crop-specific threshold for cold days.
+
+Thresholds $\text{ut}_{\ell,y,m,c}$ and $\text{lt}_{\ell,y,m,c}$ are based on the 90th and 10th percentiles of temperatures (precipitation) observed during month $m$ over the past five years. 
+The sample of past observation is denoted as $\boldsymbol{W}_{\ell,y,d} = \left\{\{\mathcal{W}_{\ell,y-1,m,d}\}_{d=1}^{n_m}, \{\mathcal{W}_{c,y-2,m,d}\}_{d=1}^{n_m}, \ldots, \{\mathcal{W}_{c,y-5,m,d}\}_{d=1}^{n_m}\}\right\}$. 
+    
+For temperature shocks, the thresholds are defined as follows:
+$$
+\begin{align}
+    \text{ut}_{\ell,y,m,c} &= \max\{P_{90}(\boldsymbol{T}_{\ell,y,d}), \tau_{\text{upper},c}\}\\
+    \text{lt}_{\ell,y,m,c} &= \min\{P_{10}(\boldsymbol{T}_{\ell,y,d}), \tau_{\text{lower}},c\}
+\end{align}
+$$
+with $\tau_{\text{upper},c} = 29^\circ\text{C}$ for rice and maize, $30^\circ\text{C}$ for potatoes and cassava, and $\tau_{\text{lower},c} = 8^\circ\text{C}$ for rice and maize, $10^\circ\text{C}$ for potatoes and cassava.
+
+For precipitation shocks, the thresholds are defined using the percentiles of past values only:%
+$$
+\begin{align}
+    \text{ut}_{\ell,y,m,c} &= P_{90}(\boldsymbol{P}_{\ell,y,d})\\
+    \text{lt}_{\ell,y,m,c} &= P_{10}(\boldsymbol{P}_{\ell,y,d})
+\end{align}
+$$
+
+Positive values of $\mathcal{W}^{(+)}_{\ell,y,m,c}$ represent days that are hotter (or wetter) than expected, while positive values of $\mathcal{W}^{(-)}_{\ell,y,m,c}$ represent days that are colder (or drier) than expected.
+
+
+The values were aggregated at the monthly regional level (see [Chapter -@sec-weather-data]).
+
+:::
+
+```{r}
+library(tidyverse)
+library(fastDummies)
+```
+
+The data can be loaded (see [Chapter -@sec-merge])
+```{r}
+load("../data/output/df_lp.rda")
+df
+```
+
+
+Some packages are needed, make sure that they are installed.
+
+```{r}
+# install.packages("fastDummies")
+# install.packages("imputeTS")
+# install.packages("ggh4x")
+# install.packages("mFilter")
+# install.packages("pbapply")
+# install.packages("latex2exp")
+# install.packages("sandwich")
+```
+
+
+We load some useful functions:
+```{r}
+# Functions useful to shape the data for local projections
+source("../weatherperu/R/format_data.R")
+
+# Load function in utils
+source("../weatherperu/R/utils.R")
+
+# Load detrending functions
+source("../weatherperu/R/detrending.R")
+```
+
+
+Each row of `df` gives production data for a crop $c$ in region $i$ at time $t$. The surprise weather shocks were computed using crop-specific thresholds. We need to create four variables for the surprise shocks: `cold_surprise`, `hot_surprise`, `dry_surprise`, `wet_surprise`. The values in these four columns must correspond to the shock defined using the crop-specific threshold.
+```{r}
+df <- 
+  df |> 
+  mutate(
+   cold_surprise = case_when(
+     product_eng == "Rice" ~ cold_surprise_rice,
+     product_eng == "Dent corn" ~ cold_surprise_maize,
+     product_eng == "Potato" ~ cold_surprise_potato,
+     product_eng == "Cassava" ~ cold_surprise_cassava,
+     TRUE ~ NA_real_
+   ),
+   hot_surprise = case_when(
+     product_eng == "Rice" ~ hot_surprise_rice,
+     product_eng == "Dent corn" ~ hot_surprise_maize,
+     product_eng == "Potato" ~ hot_surprise_potato,
+     product_eng == "Cassava" ~ hot_surprise_cassava,
+     TRUE ~ NA_real_
+   ),
+   dry_surprise = case_when(
+     product_eng == "Rice" ~ dry_surprise_rice,
+     product_eng == "Dent corn" ~ dry_surprise_maize,
+     product_eng == "Potato" ~ dry_surprise_potato,
+     product_eng == "Cassava" ~ dry_surprise_cassava,
+     TRUE ~ NA_real_
+   ),
+   wet_surprise = case_when(
+     product_eng == "Rice" ~ wet_surprise_rice,
+     product_eng == "Dent corn" ~ wet_surprise_maize,
+     product_eng == "Potato" ~ wet_surprise_potato,
+     product_eng == "Cassava" ~ wet_surprise_cassava,
+     TRUE ~ NA_real_
+   )
+  )
+```
+
+
+## Linear Local Projections {#sec-lp-linear-chirps}
+
+In this section, we focus on estimating the Local Projections [@jorda2005estimation] to quantify the impact of weather on agricultural production. We use panel data, similar to the approach used in the study by @acevedo2020effects, and independently estimate models for each specific crop.
+
+For a particular crop denoted as $c$, the model can be expressed as follows:
+$$
+\begin{aligned}
+\underbrace{y_{c,i,{\color{wongGold}t+h}}}_{\text{Production}} = &  {\color{wongOrange}\beta_{c,{\color{wongGold}h}}^{{\color{wongPurple}HotSurprise}}} {\color{wongPurple}{\text{HotSurprise}^{+}_{i,{\color{wongGold}t}}}} + 
+{\color{wongOrange}\beta_{c,{\color{wongGold}h}}^{{\color{wongPurple}ColdSurprise}}} {\color{wongPurple}{\text{ColdSurprise}^{+}_{i,{\color{wongGold}t}}}}\\
+& + {\color{wongOrange}\beta_{c,{\color{wongGold}h}}^{{\color{wongPurple}DrySurprise}}} {\color{wongPurple}{\text{DrySurprise}^{+}_{i,{\color{wongGold}t}}}} +
++ {\color{wongOrange}\beta_{c,{\color{wongGold}h}}^{{\color{wongPurple}WetSurprise}}} {\color{wongPurple}{\text{WetSurprise}^{+}_{i,{\color{wongGold}t}}}}\\
+        &+\gamma_{c,i,h}\underbrace{X_{t}}_{\text{controls}}  + \underbrace{\zeta_{c,i,h} \text{Trend}_{t} + \eta_{c,i,h} \text{Trend}^2_{t}}_{\text{regional monthly trend}} + \varepsilon_{c,i,t+h}
+\end{aligned}
+$$ {#eq-model-lp}
+
+Here, $i$ represents the region, $t$ represents the time, and $h$ represents the horizon. The primary focus lies on estimating `r colorize("the coefficients", wongOrange)` associated with `r colorize("temperature", wongPurple)` surprise shocks and `r colorize("precipitation", wongPurple)` surprise shocks for different `r colorize("time horizons", wongGold)` $\color{wongGold}h=\{0,1,...,T_{c}\}$
+
+Note that we allow a crop regional monthly specific quadratic trend to be estimated.
+
+
+### Functions {#sec-lp-functions-chirps}
+
+The estimation functions presented in [Chapter -@sec-lp-functions-piscop] can be sourced.
+
+```{r}
+source("../weatherperu/R/estimations.R")
+```
+
+
+### Estimation {#sec-lp-estimation-chirps}
+
+To loop over the different crops, we can use the `map()`{.R} function. This function enables us to apply the `estimate_linear_lp()`{.R} function to each crop iteratively, facilitating the estimation process.
+
+
+```{r lp-lin-estim}
+crops <- df$product_eng |> unique()
+weather_variables <- c("cold_surprise", "hot_surprise", "dry_surprise", "wet_surprise")
+control_variables <- c("rer_hp", "r_hp", "pi", "ind_prod", "ONI", "price_int_inf")
+nb_h <- 14
+```
+
+The estimation (this code takes about a minute to run, we load results in this notebook):
+```{r, eval=FALSE}
+resul_lp <- vector(mode = "list", length = length(crops))
+for (i_crop in 1:length(crops)) {
+  print(crops[i_crop])
+  resul_lp[[i_crop]] <- estimate_linear_lp(
+    df,
+    horizons = nb_h,
+    y_name = "y_new_normalized",
+    group_name = "region_id",
+    detrend = TRUE,
+    add_month_fe = FALSE,
+    add_intercept = FALSE,
+    crop_name = crops[i_crop],
+    control_names = control_variables,
+    weather_names = weather_variables,
+    std = "Cluster",
+    # std = "nw",
+    other_var_to_keep = "y_new"
+  )
+}
+save(resul_lp, file = "output/resul_lp_surprise.rda")
+```
+
+```{r}
+load("../R/output/resul_lp_surprise.rda")
+```
+
+
+### Results
+
+
+We can visualize the Impulse Response Functions (IRFs) by plotting the estimated coefficients associated with the weather variables. These coefficients represent the impact of weather on agricultural production and can provide valuable insights into the dynamics of the system. By plotting the IRFs, we can gain a better understanding of the relationship between weather variables and the response of agricultural production over time.
+
+The data for the graphs:
+```{r create-df-irfs-lp}
+df_irfs_lp <- map(resul_lp, "coefs") |> 
+  list_rbind() |> 
+  filter(name %in% weather_variables) |> 
+  mutate(
+    shock_1_sd = value * std_shock,
+    lower_95 = (value - qnorm(0.975) * std) * std_shock,
+    upper_95 = (value + qnorm(0.975) * std) * std_shock,
+    lower_68 = (value - qnorm(0.84)  * std) * std_shock,
+    upper_68 = (value + qnorm(0.84)  * std) * std_shock
+  ) |> 
+  mutate(
+    crop = factor(
+      crop, 
+      levels = c("Rice", "Dent corn", "Potato", "Cassava"),
+      labels = c("Rice", "Maize", "Potato", "Cassava"))
+  ) |> 
+  mutate(
+    name = factor(
+      name,
+      levels = c(
+        "cold_surprise",
+        "hot_surprise",
+        "dry_surprise",
+        "wet_surprise"
+      ),
+      labels = c(
+        "Cold surprise", 
+        "Hot surprise",
+        "Dry surprise", 
+        "Wet surprise"
+      )
+    )
+  )
+```
+
+For the confidence intervals:
+```{r create-df-irfs-lp-ci}
+df_irfs_lp_ci <- 
+  df_irfs_lp |> 
+  select(horizon, crop, name, matches("^(lower)|^(upper)", perl = TRUE)) |> 
+  pivot_longer(
+    cols = matches("^(lower)|^(upper)", perl = TRUE),
+    names_pattern = "(.*)_(95|68)$",
+    names_to = c(".value", "level")
+  ) |> 
+  mutate(level = str_c(level, "%"))
+```
+
+
+
+```{r}
+#| fig-cap: Agricultural production response to a surprise weather shock
+#| label: fig-simple-projection
+#| fig-height: 6
+ggplot() +
+  geom_ribbon(
+    data = df_irfs_lp_ci |> filter(horizon <= !!nb_h),
+    mapping = aes(
+      x = horizon,
+      ymin = lower, ymax = upper, fill = level),
+    alpha = .2
+  ) +
+  geom_line(
+    data = df_irfs_lp |> filter(horizon <= !!nb_h),
+    mapping = aes(x = horizon, y = shock_1_sd),
+    colour = "#0072B2") +
+  geom_hline(yintercept = 0, colour = "gray40") +
+  ggh4x::facet_grid2(
+    name~crop, scales = "free_y", 
+    independent = "y", switch = "y") +
+  scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68%" = "gray10", "95%" = "gray60")
+  ) +
+  theme_paper() +
+  theme(strip.placement = "outside")
+```
+
+
+
+### Exporting results {#sec-lp-linear-export-posnegsurprise}
+
+Let us save the results.
+```{r, eval=FALSE}
+save(df_irfs_lp, df_irfs_lp_ci, file = "../R/output/df_irfs_lp_surprise.rda")
+save(resul_lp, file = "../R/output/resul_lp_surprise.rda")
+```
+

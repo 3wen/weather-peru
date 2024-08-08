@@ -1,0 +1,578 @@
+# Merging: quarterly data {#sec-merge-quarter}
+
+:::{.callout-note}
+
+## Objective
+
+As in [Chapter -@sec-merge], we merge the different datasets to produce the data table used in the local projections that uses **quarterly data** instead of monthly data.
+
+:::
+
+
+
+```{r}
+library(tidyverse)
+library(cli)
+```
+
+
+## Load Intermediate Files
+
+The (quarterly) weather data ([Chapter -@sec-weather-data]) can be loaded:
+```{r}
+load("../data/output/weather/weather_quarter_regions_df.rda")
+```
+
+The agricultural data ([Chapter -@sec-ag-data]):
+```{r, eval=FALSE}
+load("../data/output/minagri/dataset_agri_2001_2015.rda")
+```
+
+The macroeconomic data ([Chapter -@sec-data-macro]):
+```{r, eval=FALSE}
+load("../data/output/macro/df_macro.rda")
+```
+
+The share of natural regions and the El Niño–Southern Oscillation ([Chapter -@sec-other-data]):
+```{r, eval=FALSE}
+load("../data/output/natural_region_dep.rda")
+load("../data/output/weather/ONI_temp.rda")
+```
+
+## Merge the Files
+
+We add ENSO data to the weather dataset:
+```{r define-Weather, eval=FALSE}
+Weather <- weather_quarter_regions_df |> 
+  # Add ENSO data
+  left_join(
+    ONI_temp |> 
+      mutate(quarter = quarter(date)) |> 
+      mutate(
+        year = as.numeric(Year), 
+        quarter = as.numeric(quarter)) |> 
+      group_by(year, quarter) |> 
+      summarise(ONI = mean(ONI)), 
+    by = c(
+      "year" = "year",
+      "quarter" = "quarter"
+    )
+  ) |>
+  group_by(IDDPTO, quarter) |> 
+  mutate( 
+    temp_min_dev_ENSO   = temp_min - mean(temp_min),
+    temp_max_dev_ENSO   = temp_max - mean(temp_max),
+    temp_mean_dev_ENSO  = temp_mean - mean(temp_mean),
+    precip_sum_dev_ENSO = precip_sum - mean(precip_sum),
+    precip_piscop_sum_dev_ENSO = precip_piscop_sum - mean(precip_piscop_sum))|> 
+  ungroup() |> 
+  labelled::set_variable_labels(
+    temp_min_dev_ENSO   = "Deviation of Min. Temperature from ENSO Normals",
+    temp_max_dev_ENSO   = "Deviation of Max. Temperature from ENSO Normals",
+    temp_mean_dev_ENSO  = "Deviation of Mean Temperature from ENSO Normals",
+    precip_sum_dev_ENSO = "Deviation of Total Rainfall from ENSO Normals",
+    precip_piscop_sum_dev_ENSO = "Deviation of Total Rainfall from ENSO Normals (Piscop)"
+  )
+```
+
+
+For international prices:
+```{r}
+library(readxl)
+int_prices <- read_excel(
+  path = "../data/raw/Macro/IMF_DATA.xls",
+  sheet = "SELECTED",
+  col_types = "text") |> 
+  mutate(date = lubridate::ymd(str_c(YEAR,  "-", MONTH, "-01"))) |> 
+  rename(
+    "FPI"           = "FPI_PFOOD", 
+    "FERTILIZER"    = "FERTILIZER_PFERT",   
+    "IndexOIL"      = "IndexOIL_POILAPSP",
+    "PriceOIL"      = "PriceOIL_POILAPSP", 
+    "CORN"          = "CORN_PMAIZMT", 
+    "ARROZ CÁSCARA" = "RICE_PRICENPQ", 
+    "TRIGO"         = "WHEAT_PWHEAMT"
+  ) |> 
+  mutate(CORN2 = CORN, 
+         FPI2 = FPI) |> 
+  select(-c(MONTH, YEAR, CPI_Peru_IMF, CPI_US_IMF, IndexOIL, PriceOIL)) |> 
+  pivot_longer(cols = !date, names_to = "product", values_to = "price_int") |> 
+  mutate(
+    product = case_when(
+      product == "FPI"  ~ "PAPA", 
+      product == "FPI2" ~ "YUCA", 
+      product == "CORN" ~ "MAÍZ AMILÁCEO", 
+      product == "CORN2"~ "MAÍZ AMARILLO DURO", 
+      TRUE ~ product
+    ), 
+    product_eng = case_when(
+      product == "PAPA" ~ "Potato",
+      product == "YUCA" ~ "Cassava",
+      product == "ARROZ CÁSCARA" ~ "Rice",
+      product == "MAÍZ AMARILLO DURO" ~ "Dent corn"
+    ),
+    price_int = as.numeric(price_int)
+  ) |> 
+  arrange(product, date) |> 
+  mutate(
+    quarter = quarter(date), 
+    year    = year(date)
+  ) |>  
+  group_by(product, quarter, year) |> 
+  mutate(price_int = mean(price_int)) |>  
+  ungroup() |> 
+  select(-date) |> 
+  unique() |> 
+  group_by(product, quarter) |> 
+  arrange(year, quarter) |> 
+  mutate(int_price_inf = (price_int/lag(price_int) - 1) * 100) |> 
+  ungroup() |> 
+  arrange(product, year, quarter) |> 
+  filter(! year == 2000)
+```
+
+
+Let us merge all these datasets in a single one:
+```{r, eval=FALSE}
+data_total <- 
+  data_total |> 
+  # Add macroeconomic data
+  left_join(
+    df_macro |> rename(gdp = y),
+    by = "date"
+  ) |> 
+  mutate(quarter = quarter(date)) |> 
+  dplyr::select(
+    product_eng, region,region_id, product, quarter, year, Value_prod,
+    rer_hp, r_hp, pi, ind_prod) |> 
+  group_by(region, product, quarter, year) |> 
+  mutate(
+    Value_prod     = sum(Value_prod),   
+    rer_hp         = mean(rer_hp),
+    r_hp           = mean(r_hp),
+    pi             = mean(pi),
+    ind_prod       = mean(ind_prod)
+  ) |>  
+  ungroup() |> 
+  unique() |> 
+  # Add commodity prices data
+  left_join(
+    int_prices,
+    by =  c(
+      "product", "product_eng", "year", "quarter")
+  ) |> 
+  group_by(product, region) |> 
+  mutate(
+    int_price_inf = mFilter::hpfilter(
+      int_price_inf, freq = 1600, type = "lambda")[["cycle"]]
+  ) |> 
+  # Add weather data and ENSO 
+  left_join(
+    Weather |> 
+      dplyr::select(-IDDPTO),
+    by = c(
+      "year" = "year",
+      "quarter" = "quarter",
+      "region" = "DEPARTAMEN"
+    )
+  ) 
+```
+
+```{r, eval=FALSE}
+save(data_total, file = "../data/output/dataset_2001_2015-quarter.rda")
+```
+
+
+```{r, echo=FALSE}
+load("../data/output/dataset_2001_2015-quarter.rda")
+```
+
+Here are the first rows of that tibble:
+```{r}
+data_total
+```
+
+
+## Dataset for the Local Projections
+
+Now, let us create the dataset specifically used to estimate the models.
+
+Let us make sure that the region data are encoded as a factor.
+```{r}
+data_total <- 
+  data_total |> 
+  mutate(region_id = factor(region_id))
+```
+
+The crops we focus on:
+```{r}
+crops <- c("Rice", "Dent corn", "Potato", "Cassava")
+```
+
+The number of observation in each region, for each crop:
+```{r}
+data_total |> 
+  group_by(product_eng, region_id) |> 
+  summarise(n = sum(Value_prod <= 0)) |> 
+  arrange(desc(n))
+```
+
+
+### Definition of the Variable of Interest {#sec-lp-pct-dev}
+
+:::{.callout-warning}
+
+#### Warning
+
+We compute percentage deviation of production from quarterly regional average, but we will actually not use those values in the subsequent estimations. However, we will use the demeanded values, where missing values were, if possible, imputed.
+
+:::
+
+This section outlines a two-step procedure for expressing agricultural production data at the quarterly regional level for a specific crop and quarter as a percentage deviation from the quarterly regional crop-specific average. The procedure involves handling missing values.
+
+-   **Step 1: Handling Missing Values** 
+    
+    In the first step, we address missing values by linear interpolation. This approach helps us estimate the missing values by considering the neighboring data points.
+
+    -   Step 1.1: Imputing missing values with linear interpolation.
+        
+        The missing values get replaced by linear interpolation. However, if there are more than two consecutive missing values, they are not replaced with interpolated values. Instead, the series for the specific crop in the given region is split based on the locations of the missing values. The split with the highest number of consecutive non-missing values is retained, while the other splits are discarded.
+    -   Step 1.2: Dropping Series with Remaining Missing Values
+    
+        After imputing missing values using the moving median, we check if any missing values still remain in the dataset. If there are any remaining missing values for a particular series, we choose to exclude that series from further analysis. By doing so, we ensure that the subsequent detrending process is performed only on reliable and complete data.
+
+- **Step 2: Normalized Agricultural Production**
+
+    For each month \( m \), region \( i \), and crop \( c \), we calculate the average production over the entire period (January 2001 to December 2015):
+    $$\overline{y}_{c,i,m} = \frac{1}{n_{T_c}} \sum_{t=1}^{T_c} y_{c,i,m,t}^{\text{raw}}
+    $$
+    Then, we express agricultural production relative to the average:
+    $$y_{c,i,m,t} = \begin{cases}
+    \frac{y_{c,i,m,t}^{\text{raw}}}{\overline{y}_{c,i,m}}, & \overline{y}_{c,i,m} > 0\\
+    0, & \overline{y}_{c,i,m} = 0
+    \end{cases}$$
+    Values of $y_{c,i,m,t}>1$ means that the production for crop $c$ in region $i$ during month $m$ of year $t$ is higher than the average monthly production for that crop and region over the period 2001 to 2015. For example, a value of 1.5 means that the production is 50% higher than average.
+
+-   **Step 2 (alternative version): Deviation from regional monthly average, in percent** (this step is useless in the new version of the analysis: it lead to discard too many observations)
+
+    Once we have addressed the missing values, we proceed to the second step, which consists in computing the deviation of production from the quarterly regional average. First, we compute the average production of each crop $c$ in each region $i$ for quarter $q$:
+    $$\overline{y}_{c,i,q} = \frac{1}{n_{T_c}} \sum_{t=1}^{T_c} y_{c,i,q,t}^{raw}$$
+    Then, we compute the percentage deviation from this average at each date $t$:
+    $$y_{c,i,q,t} = \frac{y_{c,i,q,t}^{raw} - \overline{y}_{c,i,q}}{\overline{y}_{c,i,q}}$$
+
+
+Let us implement this process in R. First, we need to define two functions to handle the missing values:
+
+-   The `get_index_longest_non_na()`{.R} function retrieves the indices of the longest consecutive sequence without missing values from a given input vector. It helps us identify the positions of elements in that sequence.
+
+-   The `keep_values_longest_non_na()`{.R} function uses the obtained indices to create a logical vector. Each element of this vector indicates whether the corresponding element in the input vector belongs to the longest consecutive sequence of non-missing values. This allows us to filter the data and retain only the values from the longest consecutive sequence without missing values.
+
+These two functions combined help us handle missing data in the weather series and ensure that we work with the most complete sequences for each region and crop.
+
+The first function:
+```{r}
+#' Returns the index of the longest sequence of non NA values in a vector
+#'
+#' @param y vector of numerical values
+#' @export
+get_index_longest_non_na <- function(y) {
+  split_indices <- which(is.na(y))
+  nb_obs <- length(y)
+
+  if (length(split_indices) == 0) {
+    res <- seq_len(nb_obs)
+  } else {
+    idx_beg <- c(1, split_indices)
+    if (idx_beg[length(idx_beg)] != nb_obs) {
+      idx_beg <- c(idx_beg, nb_obs)
+    }
+    lengths <- diff(idx_beg)
+    ind_max <- which.max(lengths)
+    index_beginning <- idx_beg[ind_max]
+    if(!index_beginning == 1 | is.na(y[index_beginning])) {
+      index_beginning <- index_beginning + 1
+    }
+    index_end <- idx_beg[ind_max] + lengths[ind_max]
+    if(is.na(y[index_end])) {
+      index_end <- index_end - 1
+    }
+    res <- seq(index_beginning, index_end)
+  }
+  res
+}
+```
+
+The second one:
+
+```{r}
+#' Returns a logical vector that identifies the longest sequence of non NA
+#' values within the input vector
+#' 
+#' @param y numeric vector
+keep_values_longest_non_na <- function(y) {
+  ids_to_keep <- get_index_longest_non_na(y)
+  ids <- seq(1, length(y))
+  ids %in% ids_to_keep
+}
+```
+
+::: {.callout-note}
+
+#### Note
+
+Those two functions are defined in `weatherperu/R/utils.R`.
+
+:::
+
+
+We define a function, `pct_prod_production()`{.R}, that takes the data frame of observations as input, as well as a crop name and a region ID. It returns a tibble with the following variables:
+
+- `product_eng`: the English name of the crop
+- `region_id`: the ID of the region
+- `year`: year
+- `quarter`: quarter number
+- `y_new_normalized` (our variable of interest in [Chapter -@sec-lp-quarter]): the production demeaned by the month-specific average for the crop of interest in the region of interest
+- `y_new`: the production (in tons) where missing values were imputed, if possible
+- `y_dev_pct`: the production expressed as the percentage deviation from the monthly-specific average (for the crop of interest, in the region of interest)
+- `y`: same as `y_dev_pct` but without an estimated month-specific quadratic trend estimated by OLS
+- `t`: month-specific trend.
+```{r}
+#' Computes the percentage deviation of production from quarterly regional average
+#'
+#' @param df data
+#' @param crop_name name of the crop
+#' @param region_id id of the region
+#'
+#' @returns data frame with the product, the region id, the date, the production
+#' with imputed missing values (`y_new`), the production demeaned by the monthly
+#' mean production (`y_new_normalized`), the percentage deviation from monthly
+#' mean production (`y_dev_pct`), the percentage deviation from monthly mean
+#' production minus an estimated quadratic trend (estimated by OLS) (`y`), and,
+#' a trend (`t`)
+#' @export
+#' @importFrom dplyr filter arrange mutate select row_number group_by
+#' @importFrom tidyr nest unnest
+#' @importFrom purrr map
+#' @importFrom imputeTS na_interpolation
+#' @importFrom stats lm predict residuals
+pct_prod_production <- function(df,
+                                crop_name,
+                                region_id) {
+  # The current data
+  df_current <-
+    df |>
+    filter(
+      product_eng == !!crop_name,
+      region_id == !!region_id
+    ) |>
+    arrange(year, quarter)
+
+  ## Dealing with missing values ----
+  # Look for negative production values
+  df_current <-
+    df_current |>
+    mutate(
+      y_new = ifelse(Value_prod < 0, NA, Value_prod)
+    )
+
+  if (any(is.na(df_current$y_new))) {
+
+    # Replacing NAs by interpolation
+    # If there are more than two contiguous NAs, they are not replaced
+    df_current <-
+      df_current |>
+      mutate(
+        y_new = imputeTS::na_interpolation(y_new, maxgap = 3)
+      )
+
+    # Removing obs at the beginning/end if they are still missing
+    df_current <-
+      df_current |>
+      mutate(
+        row_to_keep = !(is.na(y_new) & row_number() %in% c(1:2, (n()-1):(n())))
+      ) |>
+      filter(row_to_keep) |>
+      select(-row_to_keep)
+
+    # Keeping the longest series of continuous non-NA values
+    df_current <-
+      df_current |>
+      mutate(
+        row_to_keep = keep_values_longest_non_na(y_new)
+      ) |>
+      filter(row_to_keep) |>
+      select(-row_to_keep)
+  }
+
+  rle_y_new <- rle(df_current$y_new)
+  check_contiguous_zeros <- rle_y_new$lengths[rle_y_new$values==0]
+
+
+  ## Percent deviation from monthly regional average
+  resul <-
+    df_current |>
+    group_by(quarter) |>
+    mutate(
+      y_new_normalized = case_when(
+        mean(y_new) == 0~ 0,
+        TRUE ~ y_new / mean(y_new)
+      ),
+      y_dev_pct = case_when(
+        mean(y_new) == 0 ~ 0,
+        TRUE ~ (y_new - mean(y_new)) / mean(y_new)
+      )
+    ) |>
+    group_by(quarter) |>
+    arrange(year, quarter) |>
+    mutate(t = row_number()) |>
+    ungroup() |>
+    nest(.by = c(product_eng, region_id, quarter)) |>
+    # distinct OLS per quarter
+    mutate(
+      ols_fit   = map(data, ~ lm(y_new_normalized ~ -1 + t + I(t^2), data = .x)),
+      resid     = map(ols_fit, residuals),
+      fitted    = map(ols_fit, predict)
+    ) |>
+    unnest(cols = c(data, resid, fitted)) |>
+    group_by(quarter) |>
+    mutate(
+      y = resid
+    ) |>
+    select(
+      product_eng, region_id, year, quarter,
+      y_new, y_dev_pct, y_new_normalized, y, t
+    ) |>
+    ungroup() |>
+    arrange(year, quarter)
+
+  resul
+}
+```
+
+For example, for potatoes in region with id 1:
+```{r}
+pct_prod_production(
+  df = data_total, 
+  crop_name = "Potato", 
+  region_id = 1
+)
+```
+
+We can apply this function to all crops of interest, in each region. Let us define a table that contains all the possible values for the combination of crops and regions:
+```{r}
+product_and_regions <- 
+  data_total |> 
+  filter(product_eng %in% crops) |> 
+  dplyr::select(product_eng, region_id, region) |> 
+  unique()
+```
+
+Then we apply the `pct_prod_production()`{.R} function to all these different cases, and store the results in a list named `df_pct_pred_production`:
+```{r define-df_pct_pred_production}
+df_pct_pred_production <- vector(mode = "list", length = nrow(product_and_regions))
+cli_progress_bar(total = nrow(product_and_regions))
+for(i in 1:nrow(product_and_regions)){
+  df_pct_pred_production[[i]] <- pct_prod_production(
+    df = data_total, 
+    crop_name = product_and_regions$product_eng[i], 
+    region_id = product_and_regions$region_id[i]
+  )
+  cli_progress_update(set = i)
+}
+```
+
+
+The elements of the list are all tibbles, with the same column names. We can merge them in a single tibble.
+```{r}
+df_pct_pred_production <- bind_rows(df_pct_pred_production)
+```
+
+
+We can have a look at the number of quarters with 0 values for the agricultural production.
+```{r}
+df_pct_pred_production |> 
+  group_by(product_eng, region_id) |> 
+  summarise(nb_0 = sum(y_new == 0)) |> 
+  arrange(desc(nb_0))
+```
+
+
+
+Now, let us add the other columns to the tibble that contains the new data:
+```{r}
+df <- df_pct_pred_production |> 
+  left_join(
+    data_total,
+    join_by(product_eng, region_id, year, quarter)
+  )
+```
+
+
+Let us also impute missing values for the weather variables.
+```{r}
+weather_variables <- 
+  weather_quarter_regions_df |> 
+  select(where(is.numeric)) |> 
+  select(-year, -quarter) |> 
+  colnames()
+```
+
+
+The current number of missing values:
+```{r}
+df |> 
+  summarise(
+    across(
+      .cols = !!weather_variables,
+      .fns = ~ sum(is.na(.x)),
+      .names = "{.col}_nb_na"
+    )
+  ) |> 
+  unlist()
+```
+
+In case of missing values, we use linear interpolation to replace them:
+```{r}
+df <- 
+  df |> 
+  mutate(
+    across(
+      .cols = !!weather_variables,
+      .fns = ~ imputeTS::na_interpolation(.x, maxgap = 3)
+    )
+  )
+```
+
+
+The number of remaining missing values:
+```{r}
+df |> 
+  summarise(
+    across(
+      .cols = !!weather_variables,
+      .fns = ~ sum(is.na(.x)),
+      .names = "{.col}_nb_na"
+    )
+  ) |> 
+  unlist()
+```
+
+
+We add labels to the new columns:
+```{r}
+df <- 
+  df |> 
+  labelled::set_variable_labels(
+    y_new = "Quarterly Agricultural Production (tons)",
+    y_dev_pct = "Quarterly Agricultural Production (pct. deviation from regional quarterly mean)"
+  )
+```
+
+
+### Saving the file
+
+The dataset that can be used to estimate the impact of weather shocks on agricultural production can be saved in the data output folder:
+```{r, eval=FALSE}
+save(df, file = "../data/output/df_lp_quarter.rda")
+```
+

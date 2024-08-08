@@ -1,0 +1,997 @@
+# Aggregate Fluctuations {#sec-var-chirps}
+
+:::{.callout-note}
+
+This Chapter reproduces the VAR analysis from [Chapter -@sec-var-piscop], using the CHIRPS precipitation data instead of the Piscop data.
+
+:::
+
+
+```{r}
+library(tidyverse)
+library(labelled)
+```
+
+The {seasonal} and {timetk} packages are needed in this chapter, for seasonal adjustment by X-13 ARIMA-SEATS. If these packages are not installed:
+```{r, eval=FALSE}
+# Do not run
+install.packages("seasonal")
+install.packages("timetk")
+```
+
+We will need the `theme_paper()`{.R} function to add our theme to the plots made with ggplot2. This function is defined in the `utils.R` script.
+```{r}
+source("../weatherperu/R/utils.R")
+```
+
+## Synthetic measure of the weather {#sec-synthetic-measure-weather-chirps}
+
+This section provides a detailed description of the methodology employed to create the synthetic measure of the weather.
+
+
+
+We need to load the results from the estimations made in [Chapter -@sec-lp-chirps].
+```{r}
+load("../R/output/resul_lp_chirps.rda")
+```
+
+```{r}
+# Data used in the local projections
+load("../data/output/df_lp.rda")
+```
+
+
+The average price of each crop in the data, denoted hereafter $p_c$:
+```{r}
+average_price_crops <- 
+  df |> group_by(product_eng) |> 
+  summarise(price_crop = mean(Value_prices, na.rm = TRUE))
+average_price_crops
+```
+
+
+
+Then, we can put the coefficients in a table, for each crop and each time horizon:
+
+```{r define-weather_variables}
+weather_variables <- c(
+  "temp_max_dev", "precip_sum_dev"
+  )
+coefs_weather <- map(
+  .x = resul_lp,
+  .f = ~ .x$coefs |> 
+    filter(name %in% weather_variables) |> 
+    select(horizon, name, value)
+)
+names(coefs_weather) <- map_chr(resul_lp, "crop_name")
+coefs_weather <- 
+  list_rbind(coefs_weather, names_to = "crop")
+```
+
+Then, we follow a methodology consisting of several key steps. 
+
+
+### Step 1: Weather Shock Contribution
+
+The first step involves estimating the contribution of weather shocks at each time period ($t$) for the chosen crop ($c$) and time horizon ($h$). This contribution is determined by considering the weather variables, temperature ($T_{i,t}$) and precipitation ($P_{i,t}$), and their respective coefficients ($\beta_{c,h}^{T}$ as well as $\beta_{c,h}^{P}$). The weather shock contribution ($\Gamma_{c,i,t,h}$) is obtained by multiplying these coefficients with the corresponding weather variables and summing them up:
+
+$$\Gamma_{c,i,t,h} = \beta_{c,h}^{T} T_{i,t-h} + \beta_{c,h}^{P} P_{i,t-h}$$ {#eq-contrib-horizon}
+
+This first step is performed, using two user-defined functions: `weather_contrib_crop_h()`{.R} which computes the contribution of the weather for a single crop and time horizon, and with `contrib_weather_crop()` which uses the former to compute the contribution of the weather for a single crop, for all horizons. We will consider 9 horizons:
+```{r define-nb_periods_wcal}
+nb_periods_wcal <- 8
+coefs_weather <- coefs_weather |>
+  filter(horizon <= nb_periods_wcal)
+```
+
+
+```{r define-weather_contrib_crop_h}
+#' Computes the contribution of the weather for a single crop and time horizon
+#'
+#' @param lp_crop LP for a specific crop
+#' @param h horizon (single value)
+#' @param weather_variables vector of names of the weather variables
+#' @param ic_conf confidence interval used to determine whether a shock has a
+#'   significant effect (default to .95)
+weather_contrib_crop_h <- function(lp_crop,
+                                   h,
+                                   weather_variables,
+                                   ic_conf = .95) {
+  # The data
+  data_lp <- lp_crop$data_lp
+  data_lp <- data_lp[[which(names(data_lp) == h)]] |> 
+    select(region_id, date, product_eng, !!weather_variables) |> 
+    ungroup()
+  # The coefficients
+  lp_coefs <- 
+    lp_crop$coefs |> 
+    filter(horizon == !!h, name %in% !!weather_variables) |> 
+    mutate(
+      value_lb = value - qnorm(1 - ((1 - ic_conf) / 2)) * std,
+      value_ub = value + qnorm(1 - ((1 - ic_conf) / 2)) * std
+    )
+  
+  # Keeping the values
+  lp_coefs_value <- lp_coefs$value
+  # The lower and upper bounds
+  lp_coefs_value_lb <- lp_coefs$value_lb
+  lp_coefs_value_ub <- lp_coefs$value_ub
+  
+  data_lp |> 
+    nest(.by = c(date, region_id)) |> 
+    mutate(
+      contribution = map(
+        .x = data,
+        .f = ~ as.matrix(.x[, weather_variables]) %*% lp_coefs_value |> 
+          sum()
+      ),
+      contribution_lb = map(
+        .x = data,
+        .f = ~ as.matrix(.x[, weather_variables]) %*% lp_coefs_value_lb |> 
+          sum()
+      ),
+      contribution_ub = map(
+        .x = data,
+        .f = ~ as.matrix(.x[, weather_variables]) %*% lp_coefs_value_ub |> 
+          sum()
+      )
+    ) |> 
+    unnest(cols = c(contribution, contribution_lb, contribution_ub)) |> 
+    select(-data) |> 
+    mutate(
+      significant = (contribution_lb > 0 & contribution_ub > 0) | (contribution_lb < 0 & contribution_ub < 0),
+      significant = as.numeric(significant)
+    ) |> 
+    mutate(date = date + lubridate::period(str_c(!!h, " month")))
+}
+```
+
+```{r define-contrib-weather-crop}
+#' Computes the contribution of the weather for a single crop, for all horizons
+#'
+#' @param lp_crop LP for a specific crop
+#' @param weather_variables vector of names of the weather variables
+#' @param horizons vector of horizons. If `NULL`, uses all horizons in lp_crop
+contrib_weather_crop <- function(lp_crop,
+                                 weather_variables,
+                                 horizons = NULL) {
+  if (is.null(horizons)) horizons <- unique(lp_crop$coefs$horizon)
+  
+  map(
+    .x = horizons,
+    .f = ~weather_contrib_crop_h(
+      lp_crop = lp_crop, 
+      h = .x, 
+      weather_variables = weather_variables
+    ) |> 
+      mutate(horizon = .x)
+  ) |> 
+    list_rbind() |> 
+    # group_by(date) |> 
+    # summarise(value = sum(contribution)) |> 
+    mutate(crop = lp_crop$crop_name) |> 
+    mutate(contribution_signif = contribution * significant)
+}
+```
+
+
+Let us compute the $\Gamma_{c,i,t,h}$ for each crop, region, date and horizon:
+```{r define-weather_measure_crop}
+weather_measure_crop <- 
+  map(
+    .x = resul_lp,
+    .f = ~contrib_weather_crop(
+      lp_crop = .x, 
+      weather_variables = weather_variables,
+      horizons = 0:nb_periods_wcal
+    )
+  ) |> 
+  list_rbind()
+```
+
+Let us add the monthly regional selling prices of the crops (`df$Value_prices`{.R}), as well as the average crop-specific prices computed earlier on the whole sample (`average_price_crops$price_crop`{.R}) which will be used as a weight when we will aggregate all crops.
+
+```{r show-weather_measure_crop}
+weather_measure_crop <- 
+  weather_measure_crop |> 
+  left_join(
+    df |> select(product_eng, region_id, date, y_new, Value_prices),
+    by = c("date", "crop" = "product_eng", "region_id")
+  ) |> 
+  left_join(
+    average_price_crops,
+    by = c("crop" = "product_eng")
+  )
+
+weather_measure_crop
+```
+
+### Step 2: Quantity Weights
+
+For each crop and date $t$, we define some weights for the regional observations using the data observed at horizon $h=0$, as the sum of the monthly agricultural production over the regions considered in the analysis. **The monthly production is expressed in monetary terms**, by multiplying the quantities (`y_new`, i.e., $y^{raw}$) by unit price (`price_crop`, i.e., $p_c$).
+
+$$\omega_{c,t} = \sum_{i} y^{\text{raw}}_{c,t,i} \times p_{c}$$
+
+```{r define-quantity_weight}
+quantity_weight <- 
+  weather_measure_crop |> 
+  filter(horizon == 0) |> 
+  group_by(crop, date, horizon, price_crop) |> 
+  summarise(quantity_weight = sum(price_crop * y_new), .groups = "drop") |> 
+  select(crop, date, quantity_weight)
+quantity_weight
+```
+
+
+### Step 3: Crop-Specific Weather-Adjusted Agricultural Production
+
+For each crop $c$, at each date $t$, we compute the weather-adjusted agricultural production, $y_{c,t}^{\omega}$, as the sum of the significant crop-specific contributions of the weather to the agricultural production. The crop-specific contribution across regions is first aggregated at the national level, using an average of the crop and region-specific contribution of the weather to the monetary equivalence of the agricultural production.
+
+$$y_{c,t}^{\omega} = \sum_{h}\sum_{i} \frac{\mathbb{1}_{\text{signif}_{c,i,t,h}} \times \gamma_{c,i,t,h} \times p_{c} \times  y^{\text{raw}}_{c,t,i}}{\text{card}(I_{c,t})},$$
+
+where $\text{card(I)}$ is the number of regions that produce crop $c$ at time $t$. The characteristic function $\mathbb{1}_{\text{signif}_{c,it,h}}$ is equal to 1 when the contribution is significantly different from 0 (using the 95% confidence intervals of the coefficients $\beta_{c,h}^{T}$ and $\beta_{c,h}^{P}$), and is equal to 0 otherwise.
+
+```{r define-weather_adjusted_ag}
+weather_adjusted_ag <- 
+  weather_measure_crop |> 
+  # each group: observations across regions, for a crop x date x horizon
+  group_by(crop, date, horizon, price_crop) |> 
+  # weather-adjusted agricultural production at each horizon
+  # y_{c,t,h}^{w}
+  summarise(
+    y_w = sum(price_crop * contribution_signif *  y_new / n(), na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  group_by(crop, date) |> 
+  # weather-adjusted agricultural production summed over horizons
+  # y_{c,t}^{w}
+  summarise(
+    y_w = sum(y_w),
+    .groups = "drop"
+  )
+```
+
+### Step 4: Aggregation at the National Level
+
+Then, we aggregate the crop-specific weather-adjusted agricultural production at the national level using the following formula:
+$$y_{t}^{\omega} = \frac{\sum_{c} y_{c,t}^{\omega}}{\sum_{c}\omega_{c,t}},$$
+
+where $\omega_{c,t}$ are the quantity weights computed in the second step.
+
+```{r define-w_df}
+w_df <- 
+  weather_adjusted_ag |> 
+  left_join(quantity_weight, by = c("crop", "date")) |> 
+  group_by(date) |> 
+  summarise(
+    w = sum(y_w) / sum(quantity_weight),
+    .groups = "drop"
+  )
+```
+
+
+### Step 5: Detrending
+
+Lastly, we express the national weather-adjusted production as a loss, and take it as a deviation from its trend:
+
+$$
+W_{t} = -100 \times (y_{t}^{\omega} - \overline{y_{t}^{\omega}}),
+$$
+
+where $y_{t}^{\omega}$ is the trend, obtained with the HP filter.
+
+
+```{r source-detrending}
+# Load detrending functions
+source("../weatherperu/R/detrending.R")
+
+w_df <- w_df |> 
+  mutate(
+    w_trend = hp_filter_trend(w, freq = 14400),
+    w_dt = - 100 * (w - w_trend),
+  )
+```
+
+
+## Agricultural Production
+
+In the second step in the creation of the synthetic measure of the weater, we computed quantity weights $\omega_{c,t}$, which correspond to the agricultural production in month $t$ for crop $t$, expressed in monetary terms. Let us aggregate these values across crops to obtain a monthly agricultural production:
+$$y_t^{A} = \sum_{c}\omega_{c,t}$$
+
+We then express these as percentage deviation from their trend computed using the HP filter.
+
+```{r define-agricultural_output}
+agricultural_output <- 
+  quantity_weight |> 
+  group_by(date) |> 
+  summarise(quantity_weight = sum(quantity_weight), .groups = "drop") |> 
+  mutate(
+    # Remove seasonality
+    q_sa = adj_season_X13(quantity_weight, ymd("2001-01-01")),
+    # Extract trend
+    q_sa_trend = hp_filter_trend(q_sa, freq = 14400),
+    # Percentage dev. from trend
+    q = 100 * log(q_sa / q_sa_trend)
+  ) |> 
+  select(date, q)
+```
+
+Note: this data is actually not used.
+
+
+## Macroeconomic indicators {#sec-var-macro-indicators-chirps}
+
+
+The vector of endogenous variables in the estimation, denoted as $Y_t$, consists of eight variables: $W_t$, $RER_t$, $\pi_t^{a}$, $\pi_{t}$ , $X_t$, $y^A_t$, $y_t$, and $r_t$:
+
+-   $W_t$ represents the aggregate measure of weather-driven agricultural losses defined in @sec-synthetic-measure-weather-chirps, which quantifies the loss in agricultural value added due to weather shocks, expressed as a deviation from its trend. It is the focal variable of interest in this analysis.
+
+-   $RER_t$ denotes the Real Exchange Rate (RER), which reflects the relative value of the domestic currency against a basket of foreign currencies.
+
+-   $\pi^a_t$ corresponds to the percentage change of the Food Consumer Price Index (CPIA), which serves as a measure of food inflation.
+
+-   $\pi_t$ corresponds to the percentage change of the Consumer Price Index (CPI), which serves as a measure of inflation.
+
+-   $X_t$ denotes Exports.
+
+-   $y^A_t$ is the Agricultural production.
+
+-   $y_t$ represents the Gross Domestic Product (GDP), which serves as a measure of the overall economic activity and output in the country.
+
+-   $r_t$ is the nominal rate.
+
+To construct the vectors $Y_t$, we use data from the Central Reserve Bank of Perú.
+
+The Real Exchange Rate (RER) data are obtained using the token _PN01259PM_,
+the Food Consumer Price Index (CPIA) data with token _PN01336PM_,
+the Consumer Price Index (CPI) data with token _PN01270PM_, 
+the Exports data with token _PN01461BM_,
+the GDP data with token _PN01773AM_,
+the agricultural GDP with token _PN01755AM_,
+and the nominal rate with token _PN07819NM_.
+
+
+Let us load the dataset of macroeconomic variables (see [Chapter -@sec-data-macro] for details on the construction of these variables).
+```{r}
+load("../data/output/macro/df_macro.rda")
+```
+
+
+## Merging the Data
+
+The sample period for our analysis covers the time span from January 2003 (2003M1) to December 2015 (2015M12). This period provides a comprehensive view of the relationship between weather-driven agricultural losses and the selected economic indicators in Peru.
+
+```{r}
+df_var <- 
+  df_macro |> 
+  left_join(
+    w_df,
+    by = "date"
+  ) |> 
+  mutate(
+    w = w_dt,
+    q = ya
+  )
+  
+variable_names <- c(
+  "Agricultural losses" = "w",
+  "Real exchange rate" = "rer_dt_sa",
+  "Food inflation rate (pp)" = "pia",
+  "Inflation rate (pp)" = "pi",
+  "Exports (pp)" = "x",
+  "Agricultural output (pp)" = "q",
+  "GDP (pp)" = "y",
+  "Interest rate (pp)" = "r"
+)
+```
+
+Let us add labels to the new columns:
+```{r}
+df_var <- 
+  df_var |>  
+  labelled::set_variable_labels(
+    w = "Agricultural losses"
+  )
+```
+
+
+Let us divide the all the values (except exports) by 100:
+```{r}
+df_var <- 
+  df_var |>  
+  labelled::set_variable_labels(
+    w = "Agricultural losses",
+    q = "Agricultural output (pp)"
+  ) |> 
+  mutate(
+    w = w / 100, 
+    rer_dt_sa = rer_dt_sa / 100, 
+    pi = pi / 100, 
+    pia = pia / 100, 
+    # x
+    q = q / 100, 
+    y = y / 100, 
+    r = r / 100
+  )
+```
+
+
+
+Figure @fig-series-var displays the time series data for the variables included in the vector $Y$.
+```{r}
+#| fig-cap: Time Series of Endogenous Variables for Vector Autoregression (VAR) Analysis in Peru (2003-2015)
+#| label: fig-series-var
+ggplot(
+    data = df_var |> 
+      filter(date >= "2003-01-01") |> 
+      select(date, w, rer_dt_sa, pia, pi, x, q, y, r) |> 
+      pivot_longer(cols = -date) |> 
+      mutate(
+        name = factor(
+          name,
+          levels = variable_names,
+          labels = names(variable_names)
+        )
+      ),
+    mapping = aes(x = date, y = value)
+  ) +
+  geom_line() +
+  facet_wrap(~name, scales = "free_y") +
+  theme_paper() +
+  labs(x = NULL, y = NULL)
+```
+
+Before proceeding to the estimation, there is one final step, which involves converting the data into the `ts` format.
+
+```{r}
+start_date <- "2003-01-01"
+df_var_ts <-
+  df_var |> 
+  filter(date >= start_date) |> 
+  select(
+    w, rer_dt_sa, pia, pi, x, q, y, r
+  ) |>
+  ts(start = c(year(start_date), month(start_date)), freq = 12)
+```
+
+## VAR Estimation
+
+We estimate a VAR(p) model with a constant term but no trend. Let us look how many lags we should use, using the automatic selection method provided by the `VARselect()`{.R} function from {vars}.
+```{r}
+info_var_estim <- vars::VARselect(y = df_var_ts, type = "const", lag.max = 6)
+info_var_estim
+```
+
+### Results
+
+Let us estimate a VAR(2) model with a constant term but no trend.
+```{r}
+var_l1 <- vars::VAR(y = df_var_ts, p = 2, type = "const")
+summary(var_l1)
+```
+
+### Restricted VAR
+
+We impose some restrictions on the VAR:
+
+```{r}
+a <- diag(1, 8)
+a[lower.tri(a)] <- NA
+a
+```
+
+```{r}
+svar_a <- vars::SVAR(var_l1, Amat = a, max.iter = 1000)
+```
+
+The matrix of the estimated coefficients:
+```{r}
+svar_a$A
+```
+
+```{r, eval=FALSE}
+save(svar_a, df_var, file = "../R/output/var_objects_chirps.rda")
+```
+
+
+
+### Impulse Response Functions
+
+Let us focus on the impulse to the weather aggregate cost equation, with 95% confidence bootstrapped error bands (500 runs).
+```{r}
+impulse_name <- "w"
+```
+
+
+The following estimations are not run in this notebook. The estimation takes about 10 minutes each.
+```{r, eval=FALSE}
+nb_runs <- 500
+
+irfs_95 <- vars::irf(
+  svar_a, impulse = impulse_name, boot = TRUE, ci = .95, 
+  n.ahead = 20, runs = nb_runs
+)
+```
+
+And with 68% confidence bootstrapped error bands (500 runs, again).
+```{r, eval=FALSE}
+irfs_68 <- vars::irf(
+  svar_a, impulse = impulse_name, boot = TRUE, ci = .68, 
+  n.ahead = 20, runs = nb_runs
+)
+```
+
+The results can be saved:
+```{r save-irfs-ci, eval=FALSE}
+save(irfs_95, file = "../R/output/irfs_95_chirps.rda")
+save(irfs_68, file = "../R/output/irfs_68_chirps.rda")
+```
+
+Let us load previously estimated IRFs.
+```{r}
+load("../R/output/irfs_95_chirps.rda")
+load("../R/output/irfs_68_chirps.rda")
+```
+
+
+```{r}
+levels <- variable_names
+labels <- names(variable_names)
+```
+
+
+Now, we can plot the resulting IRFs. Let us prepare the data for the response:
+```{r}
+df_irfs <- 
+  irfs_95$irf[[impulse_name]] |> 
+  as_tibble() |> 
+  mutate(horizon = row_number() - 1) |> 
+  pivot_longer(cols = -horizon) |> 
+  mutate(impulse = !!impulse_name)
+
+df_irfs <- 
+  df_irfs |> 
+  mutate(
+    name = factor(
+      name,
+      levels = !!levels,
+      labels = !!labels
+    )
+  )
+```
+
+The error bands:
+```{r}
+df_irfs_ci <- 
+  map(
+    .x = list(`95` = irfs_95, `68` = irfs_68),
+    .f = function(irf_lvl) {
+      map(
+        .x = list(
+          lower = irf_lvl$Lower[[impulse_name]], 
+          mean = irf_lvl$irf[[impulse_name]],
+          upper = irf_lvl$Upper[[impulse_name]]),
+        .f = ~ .x |> 
+          as_tibble() |> 
+          mutate(horizon = row_number() - 1) |> 
+          pivot_longer(cols = -horizon, values_to = "bound") |> 
+          mutate(impulse = !!impulse_name)
+      ) |> 
+        list_rbind(names_to = "bound_type")
+    }
+  ) |> 
+  list_rbind(names_to = "level") |> 
+  pivot_wider(names_from = bound_type, values_from = bound)
+
+df_irfs_ci <- 
+  df_irfs_ci |> 
+  mutate(
+    name = factor(
+      name,
+      levels = !!levels,
+      labels = !!labels),
+    level = factor(level, levels = c(68, 95), labels = c("68%", "95%"))
+  )
+```
+
+And lastly, the graph.
+```{r}
+#| fig-cap: VAR(2) system response to one standard deviation orthogonal shock to the weather aggregate cost equation
+#| label: fig-var-irfs-w
+#| fig-width: 9
+#| fig-height: 4
+ggplot() +
+  geom_ribbon(
+    data = df_irfs_ci,
+    mapping = aes(
+      x = horizon,
+      ymin = lower, ymax = upper,
+      fill = level),
+    alpha = .3
+  ) +
+  geom_line(
+    data = df_irfs_ci,
+    mapping = aes(x = horizon, y = mean),
+    colour = "#0072B2"
+  ) +
+  geom_hline(yintercept = 0, colour = "#444444") +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68%" = "#0072B2", "95%" = "#56B4E9")) +
+  facet_wrap(~name, scales = "free_y", ncol = 4) +
+  theme_paper() +
+  coord_cartesian(xlim = c(0, 20))
+```
+
+
+The exact figure replication:
+```{r, message=FALSE, warning=FALSE}
+#| code-fold: true
+#| fig-cap: VAR(2) system response to one standard deviation orthogonal shock to the weather aggregate cost equation. The gray bands depict the 68% confidence intervals.
+#| label: fig-var-irfs-w-chirps-repl
+#| fig-width: 9
+#| fig-height: 4
+library(tikzDevice)
+library(lemon)
+ggplot() +
+  geom_ribbon(
+    data = df_irfs_ci |> 
+      filter(level == "68%") |> 
+      mutate(level = str_replace(level, "\\%", "\\\\%")),
+    mapping = aes(x = horizon,
+                  ymin = lower, ymax = upper,
+                  fill = level),
+    alpha = .2
+  ) +
+  geom_line(
+    data = df_irfs,
+    mapping = aes(x = horizon, y = value),
+    colour = "#009E73"
+  ) +
+  geom_hline(yintercept = 0, colour = "#444444") +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68\\%" = "gray10", "95\\%" = "gray60"),
+    guide = "none") +
+  facet_rep_wrap(~name, scales = "free_y", repeat.tick.labels = TRUE, ncol = 4) +
+  theme_paper() +
+  coord_cartesian(xlim = c(0, 20))
+```
+
+
+## Comparison between PISCOp and CHIRPS data
+
+We can plot the IRFs obtained using either the PISCOp rainfall data or the CHIRPS rainfall data.
+
+```{r}
+#| code-fold: true
+# PISCOp data
+load("../R/output/irfs_68_piscop.rda")
+load("../R/output/irfs_95_piscop.rda")
+
+df_irfs_piscop <- 
+  irfs_68$irf[[impulse_name]] |> 
+  as_tibble() |> 
+  mutate(horizon = row_number() - 1) |> 
+  pivot_longer(cols = -horizon) |> 
+  mutate(impulse = !!impulse_name)
+
+df_irfs_piscop <- 
+  df_irfs_piscop |> 
+  mutate(
+    name = factor(
+      name,
+      levels = !!levels,
+      labels = !!labels
+    )
+  )
+
+df_irfs_ci_piscop <- 
+  map(
+    .x = list(`95` = irfs_95, `68` = irfs_68),
+    .f = function(irf_lvl) {
+      map(
+        .x = list(
+          lower = irf_lvl$Lower[[impulse_name]], 
+          mean = irf_lvl$irf[[impulse_name]],
+          upper = irf_lvl$Upper[[impulse_name]]),
+        .f = ~ .x |> 
+          as_tibble() |> 
+          mutate(horizon = row_number() - 1) |> 
+          pivot_longer(cols = -horizon, values_to = "bound") |> 
+          mutate(impulse = !!impulse_name)
+      ) |> 
+        list_rbind(names_to = "bound_type")
+    }
+  ) |> 
+  list_rbind(names_to = "level") |> 
+  pivot_wider(names_from = bound_type, values_from = bound)
+
+df_irfs_ci_piscop <- 
+  df_irfs_ci_piscop |> 
+  mutate(
+    name = factor(
+      name,
+      levels = !!levels,
+      labels = !!labels),
+    level = factor(level, levels = c(68, 95), labels = c("68%", "95%"))
+  )
+
+# CHIRPS data
+load("../R/output/irfs_68_chirps.rda")
+load("../R/output/irfs_95_chirps.rda")
+df_irfs_chirps <- 
+  irfs_68$irf[[impulse_name]] |> 
+  as_tibble() |> 
+  mutate(horizon = row_number() - 1) |> 
+  pivot_longer(cols = -horizon) |> 
+  mutate(impulse = !!impulse_name)
+
+df_irfs_chirps <- 
+  df_irfs_chirps |> 
+  mutate(
+    name = factor(
+      name,
+      levels = !!levels,
+      labels = !!labels
+    )
+  )
+
+df_irfs_ci_chirps <- 
+  map(
+    .x = list(`95` = irfs_95, `68` = irfs_68),
+    .f = function(irf_lvl) {
+      map(
+        .x = list(
+          lower = irf_lvl$Lower[[impulse_name]], 
+          mean = irf_lvl$irf[[impulse_name]],
+          upper = irf_lvl$Upper[[impulse_name]]),
+        .f = ~ .x |> 
+          as_tibble() |> 
+          mutate(horizon = row_number() - 1) |> 
+          pivot_longer(cols = -horizon, values_to = "bound") |> 
+          mutate(impulse = !!impulse_name)
+      ) |> 
+        list_rbind(names_to = "bound_type")
+    }
+  ) |> 
+  list_rbind(names_to = "level") |> 
+  pivot_wider(names_from = bound_type, values_from = bound)
+
+df_irfs_ci_chirps <- 
+  df_irfs_ci_chirps |> 
+  mutate(
+    name = factor(
+      name,
+      levels = !!levels,
+      labels = !!labels),
+    level = factor(level, levels = c(68, 95), labels = c("68%", "95%"))
+  )
+
+# Merge results
+df_irfs <- 
+  df_irfs_piscop |> mutate(data = "PISCOp") |> 
+  bind_rows(df_irfs_chirps |> mutate(data = "CHIRPS")) |> 
+  mutate(data = factor(data, levels = c("PISCOp", "CHIRPS")))
+
+df_irfs_ci <- 
+  df_irfs_ci_piscop |> mutate(data = "PISCOp") |> 
+  bind_rows(df_irfs_ci_chirps |> mutate(data = "CHIRPS"))
+
+# Aesthetics
+df_irfs_ci <- df_irfs_ci |> 
+  mutate(
+    fill_lab = str_c(data, "_", level),
+    fill_lab = factor(
+      fill_lab, 
+      levels = c("PISCOp_68%", "PISCOp_95%", "CHIRPS_68%", "CHIRPS_95%"), 
+      labels = c("PISCOp, 68%", "PISCOp, 95%", "CHIRPS, 68%", "CHIRPS, 95%")
+    )
+  )
+```
+
+
+```{r}
+#| code-fold: true
+#| fig-cap: VAR(2) system response to an unit orthogonal shock to the weather aggregate cost equation, using either PISCOp data or CHIRPS data
+#| label: fig-var-comparison
+#| fig-width: 10
+#| fig-height: 5.5
+library(tikzDevice)
+library(lemon)
+ggplot() +
+  geom_ribbon(
+    data = df_irfs_ci |> 
+      filter(level == "68%"),
+    mapping = aes(x = horizon,
+                  ymin = lower, ymax = upper,
+                  fill = fill_lab),
+    alpha = .2
+  ) +
+  geom_line(
+    data = df_irfs,
+    mapping = aes(x = horizon, y = value, colour = data),
+    linewidth = 1.1
+  ) +
+  geom_hline(yintercept = 0, colour = "#444444") +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "Data, C.I. level", 
+    values = c(
+      "PISCOp, 68%" = "#117733", 
+      "PISCOp, 95%" = "#44AA99", 
+      "CHIRPS, 68%" = "#882255", 
+      "CHIRPS, 95%" = "#CC6677"
+    )
+  ) +
+  scale_colour_manual(
+    NULL, values = c("PISCOp" = "#117733", "CHIRPS" = "#882255"), guide = "none"
+  ) +
+  facet_rep_wrap(~name, scales = "free_y", repeat.tick.labels = TRUE, ncol = 4) +
+  theme_paper() +
+  coord_cartesian(xlim = c(0, 20))
+```
+
+
+## Estimation with Local Projections
+
+
+We can also estimate the propagation of the shock using local projections rather than VAR.
+
+Let us build the table with the data:
+```{r define-df_lp}
+df_lp <- 
+  df_var |> 
+  filter(date >= start_date) |> 
+  select(
+    w, rer_dt_sa, pia, pi, x, q, y, r
+  )
+```
+
+The linear impulse response functions can be estimated using the `lp_lin()`{.R} function from {lpirfs}.
+
+```{r define-results_lin_95}
+library(lpirfs)
+# With 95% conf. int.
+results_lin_95 <- lp_lin(
+  endog_data     = df_lp,
+  lags_endog_lin = 2,# 2 lags
+  trend          = 0,# no trend
+  shock_type     = 0,# std dev. shock
+  confint        = 1.96,
+  hor            = 20
+)
+# With 68% conf. int.
+results_lin_68 <- lp_lin(
+  endog_data     = df_lp,
+  lags_endog_lin = 2,# 2 lags
+  trend          = 0,# no trend
+  shock_type     = 0,# std dev. shock
+  confint        = 1,
+  hor            = 20
+)
+```
+
+We define a small function, `get_irfs()`{.R}, to format the IRFs from the object returned by `lp_lin()`{.R}.
+```{r define-get_irfs}
+get_irfs <- function(resul_lin) {
+  irf_lin_mean <- resul_lin[["irf_lin_mean"]]
+  irf_lin_low <- resul_lin[["irf_lin_low"]]
+  irf_lin_up <- resul_lin[["irf_lin_up"]]
+  specs <- resul_lin$specs
+  
+  irfs_df <- NULL
+  for (rr in 1:(specs$endog)) {
+    for (ss in 1:(specs$endog)) {
+      tbl_lin_mean <- as.matrix(t(irf_lin_mean[, 1:specs$hor, ss]))[, rr]
+      tbl_lin_low <- as.matrix(t(irf_lin_low[, 1:specs$hor, ss]))[, rr]
+      tbl_lin_up <- as.matrix(t(irf_lin_up[, 1:specs$hor, ss]))[, rr]
+      tbl_lin <- tibble(
+        horizon = seq_along(tbl_lin_mean), 
+        mean = tbl_lin_mean, 
+        low = tbl_lin_low, 
+        up = tbl_lin_up,
+        shocked = specs$column_names[ss],
+        on = specs$column_names[rr]
+      )
+      irfs_df <- bind_rows(irfs_df, tbl_lin)
+    }
+  }
+  
+  irfs_df <- 
+    irfs_df |>
+    mutate(
+      shocked = factor(shocked, levels = variable_names, labels = names(variable_names)),
+      on = factor(on, levels = variable_names, labels = names(variable_names))
+    )
+  
+  irfs_df
+}
+```
+
+The formatted IRFs:
+```{r define-irfs_df}
+irfs_df <- 
+  get_irfs(results_lin_95) |> mutate(level = "95%") |> 
+  bind_rows(
+    get_irfs(results_lin_68) |> mutate(level = "68%")
+  )
+```
+
+And the figure:
+
+```{r}
+#| code-fold: true
+#| fig-cap: System response to one standard deviation orthogonal shock to the weather aggregate cost equation. Estimations made with local projections.
+#| label: fig-lp-irfs-w
+#| fig-width: 9
+#| fig-height: 4
+ggplot() +
+  geom_ribbon(
+    data = irfs_df |> filter(shocked == "Agricultural losses"), 
+    mapping = aes(
+      x = horizon,
+      ymin = low, ymax = up,
+      fill = level),
+    alpha = .3
+  ) +
+  geom_line(
+    data = irfs_df |> filter(shocked == "Agricultural losses"), ,
+    mapping = aes(x = horizon, y = mean),
+    colour = "#0072B2"
+  ) +
+  geom_hline(yintercept = 0, colour = "#444444") +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68%" = "#0072B2", "95%" = "#56B4E9")) +
+  facet_wrap(~on, scales = "free_y", ncol = 4) +
+  theme_paper() +
+  coord_cartesian(xlim = c(0, 20)) +
+  scale_y_continuous(labels = scales::label_percent())
+```
+
+
+And with the 68% confidence interval only:
+
+```{r}
+#| code-fold: true
+#| fig-cap: System response to one standard deviation orthogonal shock to the weather aggregate cost equation. Estimations made with local projections. The gray bands depict the 68% confidence intervals.
+#| label: fig-lp-irfs-w-repl
+#| fig-width: 9
+#| fig-height: 4
+library(tikzDevice)
+library(lemon)
+ggplot(
+    data = irfs_df |> filter(shocked == "Agricultural losses") |> 
+      filter(level == "68%") |> 
+      mutate(level = str_replace(level, "\\%", "\\\\%")) |> 
+      mutate(
+        mean = mean * 100,
+        low = low * 100,
+        up = up * 100
+      )
+  ) +
+  geom_ribbon(
+    mapping = aes(x = horizon,ymin = low, ymax = up, fill = level),
+    alpha = .2
+  ) +
+  geom_line(
+    mapping = aes(x = horizon, y = mean),
+    colour = "#009E73"
+  ) +
+  geom_hline(yintercept = 0, colour = "#444444") +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68\\%" = "gray10", "95\\%" = "gray60"),
+    guide = "none") +
+  facet_rep_wrap(~on, scales = "free_y", repeat.tick.labels = TRUE, ncol = 4) +
+  theme_paper() +
+  coord_cartesian(xlim = c(0, 20))
+```
+
+
+

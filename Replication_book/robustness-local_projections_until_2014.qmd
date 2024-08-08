@@ -1,0 +1,363 @@
+# Agricultural Production (LP): without 2015 data {#sec-lp-until2014}
+
+:::{.callout-note}
+
+## Objectives
+
+Estimate response functions of agricultural production following a weather shock, using Local Projections as in [Chapter -@sec-lp-piscop], keeping data from years from 2001 to 2014 instead of data from 2001 to 2015 (hence removing the last year of observations).
+
+
+:::
+
+```{r}
+#| echo: false
+#| eval: true
+#| message: false
+#| warning: false
+colorize <- function(x, color) {
+  if (knitr::is_latex_output()) {
+    if (grep(x = color, "^#")) {
+      color <- deparse(substitute(color))
+    }
+    sprintf("\\textcolor{%s}{%s}", color, x)
+  } else if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'>%s</span>", color,
+            x)
+  } else x
+}
+
+wongBlack     <- "#000000"
+wongGold      <- "#E69F00"
+wongLightBlue <- "#56B4E9"
+wongGreen     <- "#009E73"
+wongYellow    <- "#F0E442"
+wongBlue      <- "#0072B2"
+wongOrange    <- "#D55E00"
+wongPurple    <- "#CC79A7"
+
+
+rouge <- "#D81B60"
+bleu <- "#1E88E5"
+jaune <- "#FFC107"
+vert <- "#004D40"
+highlight <- wongGold
+```
+
+$$
+\definecolor{bayesred}{RGB}{147, 30, 24}
+\definecolor{bayesblue}{RGB}{32, 35, 91}
+\definecolor{bayesorange}{RGB}{218, 120, 1}
+\definecolor{grey}{RGB}{128, 128, 128}
+\definecolor{couleur1}{RGB}{0,163,137}
+\definecolor{couleur2}{RGB}{255,124,0}
+\definecolor{couleur3}{RGB}{0, 110, 158}
+\definecolor{coul1}{RGB}{255,37,0}
+\definecolor{coul2}{RGB}{242,173,0}
+\definecolor{col_neg}{RGB}{155, 191, 221}
+\definecolor{col_pos}{RGB}{255, 128, 106}
+\definecolor{wongBlack}{RGB}{0,0,0}
+\definecolor{wongLightBlue}{RGB}{86, 180, 233}
+\definecolor{wongGold}{RGB}{230, 159, 0}
+\definecolor{wongGreen}{RGB}{0, 158, 115}
+\definecolor{wongYellow}{RGB}{240, 228, 66}
+\definecolor{wongBlue}{RGB}{0, 114, 178}
+\definecolor{wongOrange}{RGB}{213, 94, 0}
+\definecolor{wongPurple}{RGB}{204, 121, 167}
+\definecolor{IBMPurple}{RGB}{120, 94, 240}
+\definecolor{IBMMagenta}{RGB}{220, 38, 127}
+$$
+
+This chapter uses @jorda2005estimation Local Projection framework to measure how sensitive agricultural output is to exogenous changes in the weather. It complements [Chapter -@sec-lp-piscop] and removes the last year of observations from the sample.
+
+In the raw data from the Ministry of Agriculture, observations are provided on a monthly basis until 2015. For 2016, the data are available only on a quarterly basis. Each file from 2001 to 2015 reports both the production value for the current year and a revised version for the previous year. In our main analysis, we used the revised production data until 2015. Since no revised values were available for 2016, we used the unrevised 2015 data in our sample. In this chapter, we consider estimating the regressions without the unrevised production data, focusing on the data spanning from 2001 to 2014 instead of 2001 to 2015.
+
+```{r}
+library(tidyverse)
+library(fastDummies)
+```
+
+The data can be loaded (see [Chapter -@sec-merge])
+```{r}
+load("../data/output/df_lp.rda")
+df
+```
+
+We remove the observations from year 2015.
+```{r}
+df <- df |> filter(year < 2015)
+```
+
+
+
+Some packages are needed, make sure that they are installed.
+
+```{r}
+# install.packages("fastDummies")
+# install.packages("imputeTS")
+# install.packages("ggh4x")
+# install.packages("mFilter")
+# install.packages("pbapply")
+# install.packages("latex2exp")
+# install.packages("sandwich")
+# install.packages("lmtest")
+```
+
+
+We load some useful functions:
+```{r}
+# Functions useful to shape the data for local projections
+source("../weatherperu/R/format_data.R")
+
+# Load function in utils
+source("../weatherperu/R/utils.R")
+
+# Load detrending functions
+source("../weatherperu/R/detrending.R")
+```
+
+
+## Linear Local Projections {#sec-lp-linear-until2014}
+
+In this section, we focus on estimating the Local Projections [@jorda2005estimation] to quantify the impact of weather on agricultural production. We use panel data, similar to the approach used in the study by @acevedo2020effects, and independently estimate models for each specific crop.
+
+For a particular crop denoted as $c$, the model can be expressed as follows:
+$$
+\begin{aligned}
+\underbrace{y_{c,i,{\color{wongGold}t+h}}}_{\text{Production}} = &  {\color{wongOrange}\beta_{c,{\color{wongGold}h}}^{{\color{wongPurple}T}}} {\color{wongPurple}{T_{i,{\color{wongGold}t}}}} + {\color{wongOrange}\beta_{c,{\color{wongGold}h}}^{{\color{wongPurple}P}}} {\color{wongPurple}P_{i,{\color{wongGold}t}}}\\
+        &+\gamma_{c,i,h}\underbrace{X_{t}}_{\text{controls}}  + \underbrace{\zeta_{c,i,h} \text{Trend}_{t} + \eta_{c,i,h} \text{Trend}^2_{t}}_{\text{regional monthly trend}} + \varepsilon_{c,i,t+h}
+\end{aligned}
+$$ {#eq-model-lp}
+
+Here, $i$ represents the region, $t$ represents the time, and $h$ represents the horizon. The primary focus lies on estimating `r colorize("the coefficients", wongOrange)` associated with `r colorize("temperature", wongPurple)` and `r colorize("precipitation", wongPurple)` for different `r colorize("time horizons", wongGold)` $\color{wongGold}h=\{0,1,...,T_{c}\}$
+
+Note that we allow a crop regional monthly specific quadratic trend to be estimated.
+
+
+### Functions {#sec-lp-functions-until2014}
+
+The estimation functions presented in [Chapter -@sec-lp-functions-piscop] can be sourced.
+
+```{r}
+source("../weatherperu/R/estimations.R")
+```
+
+
+### Estimation {#sec-lp-estimation-until2014}
+
+To loop over the different crops, we can use the `map()`{.R} function. This function enables us to apply the `estimate_linear_lp()`{.R} function to each crop iteratively, facilitating the estimation process.
+
+
+```{r lp-lin-estim}
+crops <- df$product_eng |> unique()
+weather_variables <- c("temp_max_dev", "precip_piscop_sum_dev")
+control_variables <- c(
+  "rer_hp", "r_hp", "pi", "ind_prod", "ONI", "price_int_inf"
+)
+nb_h <- 14
+```
+
+The estimation (this code takes about a minute to run, we load results in this notebook):
+```{r, eval=FALSE}
+resul_lp <- vector(mode = "list", length = length(crops))
+for (i_crop in 1:length(crops)) {
+  resul_lp[[i_crop]] <- estimate_linear_lp(
+    df,
+    horizons = nb_h,
+    y_name = "y_new_normalized",
+    group_name = "region_id",
+    detrend = TRUE,
+    add_month_fe = FALSE,
+    add_intercept = FALSE,
+    crop_name = crops[i_crop],
+    control_names = control_variables,
+    weather_names = weather_variables,
+    std = "Cluster",
+    # std = "nw",
+    other_var_to_keep = "y_new"
+  )
+}
+save(resul_lp, file = "..R/output/resul_lp_piscop_until2014.rda")
+```
+
+```{r}
+load("../R/output/resul_lp_piscop_until2014.rda")
+```
+
+
+### Results
+
+
+We can visualize the Impulse Response Functions (IRFs) by plotting the estimated coefficients associated with the weather variables. These coefficients represent the impact of weather on agricultural production and can provide valuable insights into the dynamics of the system. By plotting the IRFs, we can gain a better understanding of the relationship between weather variables and the response of agricultural production over time.
+
+The data for the graphs:
+```{r create-df-irfs-lp}
+df_irfs_lp <- map(resul_lp, "coefs") |> 
+  list_rbind() |> 
+  filter(name %in% weather_variables) |> 
+  mutate(
+    shock_1_sd = value * std_shock,
+    lower_95 = (value - qnorm(0.975) * std) * std_shock,
+    upper_95 = (value + qnorm(0.975) * std) * std_shock,
+    lower_68 = (value - qnorm(0.84)  * std) * std_shock,
+    upper_68 = (value + qnorm(0.84)  * std) * std_shock
+  ) |> 
+  mutate(
+    crop = factor(
+      crop, 
+      levels = c("Rice", "Dent corn", "Potato", "Cassava"),
+      labels = c("Rice", "Maize", "Potato", "Cassava"))
+  ) |> 
+  mutate(
+    name = factor(
+      name,
+      levels = c(
+        "temp_max_dev",
+        "precip_piscop_sum_dev"
+      ),
+      labels = c(
+        "Temp. anomalies", 
+        "Precip. anomalies"
+      )
+    )
+  )
+```
+
+For the confidence intervals:
+```{r create-df-irfs-lp-ci}
+df_irfs_lp_ci <- 
+  df_irfs_lp |> 
+  select(horizon, crop, name, matches("^(lower)|^(upper)", perl = TRUE)) |> 
+  pivot_longer(
+    cols = matches("^(lower)|^(upper)", perl = TRUE),
+    names_pattern = "(.*)_(95|68)$",
+    names_to = c(".value", "level")
+  ) |> 
+  mutate(level = str_c(level, "%"))
+```
+
+
+
+```{r}
+#| fig-cap: Agricultural production response to a weather shock
+#| label: fig-simple-projection
+#| fig-width: 10
+#| fig-height: 6
+ggplot() +
+  geom_ribbon(
+    data = df_irfs_lp_ci |> filter(horizon <= !!nb_h),
+    mapping = aes(
+      x = horizon,
+      ymin = lower, ymax = upper, fill = level),
+    alpha = .2
+  ) +
+  geom_line(
+    data = df_irfs_lp |> filter(horizon <= !!nb_h),
+    mapping = aes(x = horizon, y = shock_1_sd),
+    colour = "#0072B2") +
+  geom_hline(yintercept = 0, colour = "gray40") +
+  ggh4x::facet_grid2(
+    name~crop, scales = "free_y", 
+    independent = "y", switch = "y") +
+  scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68%" = "gray10", "95%" = "gray60")
+  ) +
+  theme_paper() +
+  theme(strip.placement = "outside")
+```
+
+
+
+### Exporting results {#sec-lp-linear-export-until2014}
+
+Let us save the results for later use.
+```{r, eval=FALSE}
+save(df_irfs_lp, df_irfs_lp_ci, file = "../R/output/resul_lp_piscop_until2014.rda")
+save(resul_lp, file = "../R/output/df_irfs_lp_piscop_until2014.rda")
+```
+
+
+## Comparaison between PISCOp and CHIRPS
+
+We can plot the IRFs obtained either using PISCOp or CHIRPS rainfall data.
+
+```{r}
+#| code-fold: true
+
+df_irfs_lp_2014 <- df_irfs_lp
+df_irfs_lp_ci_2014 <- df_irfs_lp_ci
+# With Piscop data
+load("../R/output/df_irfs_lp_piscop.rda")
+df_irfs_lp_comparison <- df_irfs_lp |> 
+  mutate(data_type = "Full sample") |> 
+  bind_rows(
+    df_irfs_lp_2014 |> 
+      mutate(data_type = "Without 2015 data")
+  ) |> 
+  mutate(
+    data_type = factor(
+      data_type,
+      levels = c("Full sample", "Without 2015 data")
+    )
+  )
+
+
+df_irfs_lp_ci_comparison <- df_irfs_lp_ci |> 
+  mutate(data_type = "Full sample") |> 
+  bind_rows(
+    df_irfs_lp_ci_2014 |> 
+      mutate(data_type = "Without 2015 data")
+  ) |> 
+  mutate(
+    data_type = factor(
+      data_type,
+      levels = c("Full sample", "Without 2015 data")
+    )
+  )
+```
+
+```{r}
+#| code-fold: true
+#| fig-cap: Agricultural production response to a weather shock, with or without including data from 2015.
+#| label: fig-lp-lin-comparison
+#| fig-width: 10
+#| fig-height: 6
+ggplot() +
+  geom_ribbon(
+    data = df_irfs_lp_ci_comparison |> 
+      filter(level == "68%", horizon <= !!nb_h),
+    mapping = aes(
+      x = horizon,
+      ymin = lower, ymax = upper, fill = data_type, colour = data_type, 
+      linetype = data_type),
+    alpha = .2
+  ) +
+  geom_line(
+    data = df_irfs_lp_comparison |> filter(horizon <= !!nb_h),
+    mapping = aes(x = horizon, y = shock_1_sd, colour = data_type, 
+                  linetype = data_type),
+    linewidth = 1.1
+  ) +
+  scale_colour_manual(
+    NULL, 
+    values = c("Full sample" = "#56B4E9", "Without 2015 data" = "#D55E00")
+  ) +
+  geom_hline(yintercept = 0, colour = "gray40") +
+  ggh4x::facet_grid2(
+    name~crop, scales = "free_y", 
+    independent = "y", switch = "y") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
+  labs(x = "Horizon (in months)", y = NULL) +
+  scale_fill_manual(
+    NULL,
+    values = c("Full sample" = "#56B4E9", "Without 2015 data" = "#D55E00")
+  ) +
+  scale_linetype_discrete(NULL) +
+  theme_paper() +
+  theme(strip.placement = "outside")
+```
+

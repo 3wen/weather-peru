@@ -1,0 +1,4582 @@
+# Agricultural Data {#sec-ag-data}
+
+:::{.callout-note}
+
+## Objectives
+
+This section provides the code to download and format Peruvian agricultural data from the monthly reports "_[El Agro en Cifras](https://www.midagri.gob.pe/portal/boletin-estadistico-mensual-el-agro-en-cifras)_" produced by the Ministry of Agriculture and Irrigation of Peru (MINAGRI). The downloaded reports cover the period from 2001 to 2019. However, starting from 2016, the observations provided are no longer monthly but quarterly. Therefore, they are excluded from the analysis.
+
+:::
+
+Multiple R packages are required.
+
+::: {.callout-tip}
+
+If you previously loaded the {raster} package, there will be conflicts between `dplyr::select()`{.R} and `raster::select()`{.R} functions. It is recommended to run the code in this chapter in a clear R session.
+
+:::
+
+```{r, eval=FALSE}
+library(rJava)
+options(java.parameters = "-Xmx2048m")
+library(tidyverse)
+library(rvest)
+library(readxl)
+library(xlsx)
+library(data.table)
+library(lubridate, warn.conflicts = FALSE)
+library(cowplot)
+library(jtools)
+library(huxtable)
+library(xtable)
+library(texreg)
+library(pdftools)
+library(timetk)
+library(seasonal)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+```
+
+
+
+
+## Functions
+
+In this section, we define several functions to download and format various datasets. These functions will be utilized later in [Section -@sec-data-agriculture-import] for importing and formatting the agricultural data in R.
+
+### Downloading Data
+
+```{r}
+#' Directly download the Excels versions of the monthly reports available on the
+#' Peruvian website MINAGRI.
+#' 
+#' @param y
+download.data <- function(y){
+
+  # HOME PAGE
+  page <- str_c(
+    "https://www.midagri.gob.pe/portal/",
+    "boletin-estadistico-mensual-el-agro-en-cifras?start=",
+    19-y
+  )
+
+  # EXTRACTION OF THE LINKS
+  text_rvest <- read_html(page)
+  results <- text_rvest |> html_nodes(".mainbody")
+  first_result <- results[1]
+
+  # LIST OF THE MONTHS
+  list_of_months <- first_result |>
+    html_nodes(".cabecera") |>
+    html_text(trim = TRUE)
+  list_of_months <- list_of_months[str_detect(list_of_months, "[aeiou]")]
+
+  # LIST OF THE urls (=liens)
+  liens <-first_result |> html_nodes("a[href]") |> html_attr("href")
+  liens <- liens[(str_detect(liens, "zip"))]
+  if (sum(as.numeric(str_detect(liens, "\\.pdf"))) > 0) {
+    liens <- liens[-which(str_detect(liens, "\\.pdf"))]
+  }
+  if (sum(as.numeric(str_detect(liens, "pdf\\.zip"))) > 0) {
+    liens <- liens[-which(str_detect(liens, "pdf\\.zip"))]
+  }
+  if ((y == 13) | (y == 14) | (y ==15)) {
+    liens <- liens[which(str_detect(liens, "cuadros"))]
+  }
+  if (y == 16) {
+    liens <- liens[which(str_detect(liens, "data"))]
+  }
+  if (y == 14) {
+    if (sum(as.numeric(str_detect(liens, "abril"))) > 1) {
+      line <- liens[which(str_detect(liens, "abril"))[1]]
+      liens <- liens[-which(str_detect(liens, "abril"))]
+    }
+  }
+
+  if (sum(as.numeric(duplicated(liens))) > 0) {
+    liens <- liens[-which(duplicated(liens) == T)]
+  }
+  if (y == 14) {
+    liens <- c(liens[1:8], line, liens[9:11])
+  }
+
+  annee <-  as.numeric(str_c("20", ifelse(y <10 , str_c("0",y), y)))
+
+  # CONDITION 1: Checking the number of urls
+  if (length(liens) == length(list_of_months)) {
+
+    if (y == 7) {
+      list_of_months <- list_of_months[-8]
+      liens <- liens[-8]
+    }
+
+    dir.create(str_c("../data/", annee))
+
+
+    # LOOP 1 - On months for downloading and extracting the ZIP files
+    for (m in 1:length(liens)) {
+      mois_Lettres <- list_of_months[m]
+
+      mois <- case_when(
+        str_detect(mois_Lettres, "iciembre") ~ "12",
+        str_detect(mois_Lettres, "oviembre") ~ "11",
+        str_detect(mois_Lettres, "ctubre")   ~ "10",
+        str_detect(mois_Lettres, "tiembre")  ~ "09",
+        str_detect(mois_Lettres, "osto")     ~ "08",
+        str_detect(mois_Lettres, "ulio")     ~ "07",
+        str_detect(mois_Lettres, "unio")     ~ "06",
+        str_detect(mois_Lettres, "ayo")      ~ "05",
+        str_detect(mois_Lettres, "bril")     ~ "04",
+        str_detect(mois_Lettres, "arzo")     ~ "03",
+        str_detect(mois_Lettres, "brero")    ~ "02",
+        str_detect(mois_Lettres, "nero")     ~ "01"
+      )
+
+      # DOWNLOADING THE FILE
+      AdresseFichier <- str_c("../data/raw/minagri/", annee, "/", mois, ".zip")
+      download.file(
+        url = str_c("https://www.midagri.gob.pe/", liens[m]),
+        destfile = AdresseFichier
+      )
+
+      # Names of the files in the archive
+      files <- unzip(zipfile = AdresseFichier, list = TRUE)
+      folder_name <- files$Name[str_which(
+        files$Name, regex("agr.*la", ignore_case = TRUE)
+      )] |>
+        str_extract("^(.*)/")
+
+      # Unzip on Mac OS when files in the archive contain accents in names
+      system(str_c("open ", AdresseFichier))
+      print(str_c("FILE ", mois, "-", annee, " UNZIPED"))
+
+      folder_name <- files$Name[str_which(
+        files$Name, regex("agr.*la", ignore_case = TRUE)
+      )] |>
+        str_extract("^(.*)/")
+
+      # Special case to handle year 2005
+      if (annee == 2005) {
+        AdresseFichier <- str_c("../data/raw/minagri/", annee, "/", mois)
+        fichierZip <- list.files(AdresseFichier)[str_detect(list.files(AdresseFichier), ".zip")]
+        for (i in 1:length(fichierZip)) {
+          unzip(
+            zipfile = str_c(AdresseFichier, "/", fichierZip[i]),
+            exdir = AdresseFichier
+          )
+        }
+      }
+
+    }# End of LOOP 1
+
+    # MANUAL TREATMENT FOR 2007
+    if (annee == 2007) {
+      list_of_months <- c(list_of_months[1:7], "Mayo", list_of_months[8:11])
+      dir.create(str_c("../data/raw/minagri/", annee, "/05"))
+      file.copy(
+        from = "./MAYO_2007_NO_DELETE/AGRICOLA.xls" ,
+        to = str_c("../data/raw/minagri/",annee,"/05/AGRICOLA.xls")
+      )
+    }
+
+    # LOOP 2 - On months for creating the Excel files
+    for (m in 1:length(list_of_months)) {
+
+      if (y == 15 & m == 7) { next } else {
+        # Checking the appopriate name of each month
+        mois_Lettres <- list_of_months[m]
+        mois <- case_when(
+          str_detect(mois_Lettres, "iciembre") ~ "12",
+          str_detect(mois_Lettres, "oviembre") ~ "11",
+          str_detect(mois_Lettres, "ctubre")   ~ "10",
+          str_detect(mois_Lettres, "tiembre")  ~ "09",
+          str_detect(mois_Lettres, "osto")     ~ "08",
+          str_detect(mois_Lettres, "ulio")     ~ "07",
+          str_detect(mois_Lettres, "unio")     ~ "06",
+          str_detect(mois_Lettres, "ayo")      ~ "05",
+          str_detect(mois_Lettres, "bril")     ~ "04",
+          str_detect(mois_Lettres, "arzo")     ~ "03",
+          str_detect(mois_Lettres, "brero")    ~ "02",
+          str_detect(mois_Lettres, "nero")     ~ "01"
+        )
+
+        # Selecting the right Zip file
+        AdresseFichier <- str_c("../data/raw/minagri", annee, "/", mois, ".zip")
+
+        if ((y == 12 & m == 10) | (y == 7 & m == 8)) {
+          files <- ifelse(
+            m == 10,
+            yes = data.table(Name = list.files(
+              "../data/raw/minagri/2012/cuadros-marzo12"
+            )),
+            no = data.table(Name = list.files(
+              str_c("../data/raw/minagri/", annee, "/05/")
+            ))
+          )
+        } else {
+          files <- unzip(zipfile = AdresseFichier, list = TRUE)
+        }
+
+        if (y == 06 & (m == 10 | m == 12)) {
+          for (i in 1:dim(files)[1]) {
+            name <- files[i, 1]
+            unzip(
+              zipfile = str_c(
+                "../data/raw/minagri/", annee, "/", mois, "/", name
+              ),
+              exdir = str_c(
+                "../data/raw/minagri/", annee, "/", mois
+              )
+            )
+          }
+        }
+
+        if (y == 16 & m < 12) {
+          N_1 <- str_c("../data/raw/minagri/", annee, "/", files[1, 1])
+          N <- str_c(N_1,"x")
+          file.copy(from = N_1, to = N)
+
+          if (m >= 6) {
+            N <- str_c("../data/raw/minagri/", annee, "/", files[1, 1])
+          } else {
+            unlink(N_1, recursive = TRUE)
+          }
+        } else {
+          folder_name <- files$Name[str_which(
+            files$Name,
+            regex("agr.*la", ignore_case = TRUE)
+          )] |>
+            str_extract("^(.*)/")
+
+          if (is.na(folder_name[1])) {folder_name <- mois}
+          if (y == 12 & m == 10) {folder_name <- "cuadros-marzo12"}
+
+          # Adding .xls to the 2008-07 file
+          if (y == 08 & m == 6) {
+            N <- list.files(
+              str_c("../data/raw/minagri/", annee, "/", folder_name),
+              full.names = TRUE
+            ) |>
+              {\(x) str_which(x, regex("clima", ignore_case = TRUE))}()
+            file.rename(from = N, to = str_c(N,".xls"))
+          }
+
+          # CHANGING "HIDRO.." FILES INTO "CLIMA"
+          if (
+            any(
+              str_detect(
+                list.files(
+                  str_c("../data/raw/minagri/",annee,"/",folder_name),
+                  full.names = TRUE
+                ),
+                regex("hidro.*",ignore_case = TRUE)
+              )
+            ) == TRUE) {
+            N <- list.files(
+              str_c("../data/raw/minagri/",annee,"/",folder_name),
+              full.names = TRUE
+            ) |>
+              {\(x) str_which(w, regex("hidro.*", ignore_case = TRUE))}()
+            file.rename(
+              from = N,
+              to = str_c( substr(N,0,nchar(N)-4),"clima.xls")
+            )
+          }
+
+          # Final list of files in the unziped file
+          N <- list.files(
+            str_c("../data/raw/minagri/", annee, "/", folder_name),
+            full.names = TRUE,
+            pattern = "\\.xlsx?",
+            ignore.case = TRUE
+          )
+          print(N)
+
+          # SELECTING THE FILE FOR AGRICULTURAL DATA
+          N1 <- N[str_which(N, regex("agr.*la", ignore_case = TRUE))]
+
+          if (sum(as.numeric(duplicated(N1))) > 0) {
+            N1 <- N1[-which(duplicated(N1) == T)]
+          }
+          if (length(N1) > 1) {
+            N1 <- case_when(
+              (y == 07 & m == 10) ~ N1[1],
+              (y == 08 & m == 1)  ~ N1[2],
+              (y == 08 & m == 8)  ~ N1[1],
+              (y == 15 & m == 4)  ~ N1[2]
+            )
+          }
+          print(N1)
+
+          # SELECTING THE FILE FOR PRICES
+          if (y < 14 | (y == 14 & m > 1) ) {
+            N2 <- N[str_which(N, regex("pre.*os", ignore_case = TRUE))]
+          } else {
+            N2 <- N[str_which(N, regex("agr.*la", ignore_case = TRUE))]
+          }
+
+          if (y == 16) { N2 <- N }
+
+          if (sum(as.numeric(duplicated(N2))) > 0) {
+            N2 <- N2[-which(duplicated(N2)==T)]
+          }
+          if (length(N2) > 1) {
+            N2 <- case_when(
+              (y == 07 & m == 10) ~ N2[1],
+              (y == 08 & m == 1)  ~ N2[2],
+              (y == 08 & m == 8)  ~ N2[1],
+              (y == 15 & m == 4)  ~ N2[2]
+            )
+          }
+          print(N2)
+          if (y == 10 & m == 3) {
+            file.copy(
+              from = N2 ,
+              to = str_c(
+                "../data/raw/minagri/2010/",
+                "BEAM SETIEMBRE_DEF_2010/BEAM SETIEMBRE//Precios_oct.xls"
+              )
+            )
+          }
+
+          # SELECTING THE FILE FOR CLIMATE DATA
+          N3 <- N[str_which(N, regex("c.*ima", ignore_case = TRUE))]
+          if (y == 16) {N3 <- N}
+          if (sum(as.numeric(duplicated(N3))) > 0){
+            N3 <- N3[-which(duplicated(N3) == T)]
+          }
+          if (sum(as.numeric(str_detect(N3, regex("mp.*t", ignore_case = TRUE)))) > 0) {
+            N3 <- N3[-which(str_detect(N3, regex("mp.*t", ignore_case = TRUE)))]
+          }
+          if (is_empty(N3)) {
+            N3 <- N[str_which(N, regex("Bem.*", ignore_case = TRUE))]
+            N3 <- N3[-which(str_detect(N3, regex("mp.*t", ignore_case = TRUE)))]
+          }
+          if (length(N3) > 1) {
+            N3 <- case_when(
+              (y == 07 & m == 10) ~ N3[1],
+              (y == 08 & m == 1)  ~ N3[1],
+              (y == 08 & m == 8)  ~ N3[7],
+              (y == 08 & m == 9)  ~ N3[2],
+              (y == 10 & m == 12) ~ N3[1],
+              (y == 15 & m == 4)  ~ N3[2]
+            )
+          }
+          print(N3)
+          if (is_empty(N3)) {N3 <- ""}
+
+          # Special attribution for the 2006_01 files
+          if (y == 06 & m == 12) {
+            N1 <- str_c(
+              "../data/raw/minagri/", annee, "/", mois, "/AGRICOLA/AGRICOLA.xls"
+            )
+            N2 <- str_c(
+              "../data/raw/minagri/", annee, "/", mois, "/PRECIOS/PRECIOS.xls"
+            )
+            N3 <- str_c(
+              "../data/raw/minagri/", annee, "/", mois, "/CLIMA/Bemene2006.xls"
+            )
+          }
+
+          type_xl <- "xls"
+          if (y == 15) {
+            type_xl <- "xlsx"
+            if (m == 2) {type_xl <- "xls"}
+          }
+
+          if (y == 5) {
+            folder_name <- files$Name[str_which(
+              files$Name,
+              regex("agri.*zip", ignore_case = TRUE)
+            )]
+            unzip(
+              str_c("../data/raw/minagri/", annee, "/", mois, "/", folder_name),
+              exdir = str_c("../data/raw/minagri/", annee,"/", mois)
+            )
+            N1 <- list.files(
+              str_c("../data/raw/minagri/", annee, "/", mois),
+              full.names = TRUE,
+              pattern = "\\.xlsx?",
+              ignore.case = TRUE
+            )
+          }
+        }
+
+        mois <- case_when(
+          (y == 12 & mois == "04") ~ "05",
+          (y == 12 & mois == "05") ~ "04",
+          (y == 14 & mois == "09") ~ "10",
+          (y == 14 & mois == "10") ~ "09",
+          TRUE ~ as.character(mois)
+        )
+
+
+        # FILES FOR 2005 - 2013
+        if (y <= 13) {
+          # PRODUCTION
+          name <- str_c(
+            "../data/raw/minagri/Production/Production_", annee, ".xlsx"
+          )
+          for (i in 1:2) {
+            if (y < 11) {
+              table <- ifelse(i == 1, "c-26", "c-27")
+            } else {
+              table <- ifelse(i == 1, "c-28", "c-29")
+            }
+            if (y == 11 & m == 9 ) {table <- ifelse(i == 1, "c-27", "c-28")}
+            if (y == 11 & m > 9 ) {table <- ifelse(i == 1, "c-26", "c-27")}
+            Tableau <- read_excel(path = N1, sheet = table)
+
+            write.xlsx(
+              Tableau,
+              name,
+              sheetName = str_c(mois, annee, i),
+              append = TRUE,
+              showNA = FALSE
+            )
+            print(table)
+          }
+
+          # PLANTED AREAS
+          name <- str_c(
+            "../data/raw/minagri/Surface/Superficies_", annee, ".xlsx"
+          )
+          for (i in 1:2) {
+            if (y < 11) {
+              table <- ifelse(i == 1, "c-19", "c-20")
+            } else {
+              table <- ifelse(i == 1, "c-21", "c-22")
+            }
+            if( y == 11 & m > 9 ) {table <- ifelse(i == 1, "c-19", "c-20")}
+            if( y == 11 & m == 9 ) {table <- ifelse(i == 1, "c-20", "c-21")}
+
+            Tableau <- read_excel(path = N1, sheet = table, col_types = "text")
+            write.xlsx(
+              Tableau,
+              name,
+              sheetName = str_c(mois, annee, i),
+              append = TRUE,
+              showNA = FALSE
+            )
+          }
+
+          # HARVESTED SUPERFICIES
+          name <- str_c(
+            "../data/raw/minagri/Surface_R/Superficies_R_", annee, ".xlsx"
+          )
+          for (i in 1:2) {
+            if (y < 11) {
+              table <- ifelse(i == 1, "c-23", "c-24")
+            } else {
+              table <- ifelse(i == 1, "c-25", "c-26")
+            }
+            if (y == 11 & m > 9 ) {table <- ifelse(i == 1, "c-23" ,"c-24")}
+            if (y == 11 & m == 9 ) {table <- ifelse(i == 1, "c-24" ,"c-25")}
+
+            Tableau <- read_excel(path = N1, sheet = table, col_types = "text")
+
+            write.xlsx(
+              Tableau,
+              name,
+              sheetName = str_c(mois, annee, i),
+              append = TRUE,
+              showNA = FALSE
+            )
+          }
+
+          # PRICES
+          # Name of the file
+          name <- str_c("../data/raw/minagri/Prices/Prices_", annee, ".xlsx")
+
+          # Selecting the names of the sheets
+          if (y <= 10) {
+            table <- "C-65"
+          } else {
+            table <- case_when(
+              (annee == 2011 & m < 9  )   ~ "C-69",
+              (annee == 2011 & m  == 9  ) ~ "C-68",
+              (annee == 2011 & m >= 10 )  ~ "C-65",
+              (annee > 2011 )             ~ "C-69"
+            )
+          }
+          if (y == 13 & m == 1) {table <- regex("C-76", ignore_case = TRUE)}
+          if (y == 10 & m == 4) {
+            N2 <-  str_c(
+              "../data/raw/minagri/2010/BEAM SETIEMBRE_DEF_2010/",
+              "BEAM SETIEMBRE//Precios_oct.xls"
+            )
+          }
+          if (y == 07 & m == 8) {
+            N2 <-  "../data/raw/minagri/2007/04/PRECIOS.xls"
+          }
+
+          Tableau <- read_excel(path = N2, sheet = table, col_types = "text")
+          write.xlsx(
+            Tableau,
+            name,
+            sheetName = str_c(mois, annee),
+            append = TRUE,
+            showNA = FALSE
+          )
+        } else {
+          # FILES FOR 2014 - 2018
+          if (y == 16) {
+            N1 <- N
+            N2 <- N
+            N3 <- N
+          }
+          if (y == 16 & m == 12) {
+            N1 <- N[2]
+            N2 <- N[2]
+            N3 <- N[2]
+          }
+          # PRODUCTION
+          name <- str_c(
+            "../data/raw/minagri/Production/Production_", annee, ".xlsx"
+          )
+          if(y == 14) {
+            table <- case_when(
+              m ==1  ~ "c-12",
+              m > 1 ~ "c-26"
+            )
+          }
+          if (y == 15) {table <-"c-11"}
+          if (y == 18) {table <-"c-18"}
+          if (y == 15 & m ==  2) {table <-"C-11"}
+          if (y == 15 & m ==  4) {table <-"C-11"}
+          if (y == 15 & m ==  6) {table <-"C-11"}
+          if (y == 15 & m == 10) {table <-"C-11"}
+          if (y == 16 & m <   7) {table <-"C.12"}
+          if (y == 16 & m ==  7) {table <-"C. 12"}
+          if (y == 16 & m >=  8) {table <-"C.12"}
+          if (y == 16 & m == 12) {table <-"c-11"}
+          if (y == 14 & m >7) {
+            for (i in 1:2) {
+              table <- ifelse(i == 1, "c-28", "c-29")
+              if (m == 11) {table <- ifelse(i == 1, "C-28", "C-29")}
+              if (m == 8) {table <- ifelse(i == 1, "c-26", "c-26-a")}
+              Tableau <- read_excel(path = N1, sheet = table)
+              write.xlsx(
+                Tableau,
+                name,
+                sheetName = str_c(mois, annee, i),
+                append = TRUE,
+                showNA = FALSE
+              )
+            }
+          } else {
+            Tableau <- read_excel(
+              path = N1,
+              sheet = regex(table, ignore_case = TRUE)
+            )
+            write.xlsx(
+              Tableau,
+              name,
+              sheetName = str_c(mois, annee),
+              append = TRUE,
+              showNA = FALSE
+            )
+          }
+
+
+          # PLANTED SUPERFICIES
+          name <- str_c(
+            "../data/raw/minagri/Surface/Superficies_",annee,".xlsx"
+          )
+          if(y ==14) {
+            table <- case_when(
+              m ==1 ~ "c-7",
+              m > 1 ~ "c-21"
+            )
+          }
+          if (y ==15) {table <-"c-6"}
+          if (y ==18) {table <-"c-16"}
+          if (y == 16) {table <-"C.9"}
+          if (y == 15 & m == 2) {table <-"C-6"}
+          if (y == 15 & m == 4) {table <-"C-6"}
+          if (y == 15 & m == 6) {table <-"C-6"}
+          if (y == 15 & m == 10) {table <-"C-6"}
+          if (y == 16 & m ==  7) {table <-"C. 7"}
+          if (y == 16 & m %in% c(8, 9, 10, 11, 12)) {table <-"C.6"}
+
+          if (y == 14 & m > 7 ) {
+            for (i in 1:2) {
+              table <- ifelse(i == 1, "c-21", "c-22")
+              if(m == 8 ) {table <- ifelse(i == 1, "c-21", "c-21-a")}
+              Tableau <- read_excel(path = N1, sheet = table)
+              write.xlsx(
+                Tableau,
+                name,
+                sheetName = str_c(mois, annee, i),
+                append = TRUE,
+                showNA = FALSE
+              )
+            }
+          } else {
+            Tableau <- read_excel(path = N1, sheet = table, col_types = "text")
+            write.xlsx(
+              Tableau,
+              name,
+              sheetName = str_c(mois, annee),
+              append = TRUE,
+              showNA = FALSE
+            )
+          }
+
+          # HARVESTED SUPERFICIES
+          name <- str_c(
+            "../data/raw/minagri/Surface_R/Superficies_R_", annee, ".xlsx"
+          )
+          if (y ==14) {
+            table <- case_when(
+              m ==1 ~ "c-10",
+              m > 1 ~ "c-24"
+            )
+          }
+          if (y ==15) {table <-"c-9"}
+          if (y ==18) {table <-"c-16"}
+          if (y == 16) {table <-"C.9"} #FALSE : Table do not exist in the 2016 file
+          if (y == 15 & m == 2) {table <-"C-9"}
+          if (y == 15 & m == 4) {table <-"C-9"}
+          if (y == 15 & m == 6) {table <-"C-9"}
+          if (y == 15 & m == 10) {table <-"c-9"}
+          if (y == 16 & m ==  7) {table <-"C. 7"} #FALSE : Table do not exist in the 2016 file
+          if (y == 16 & m %in% c(8, 9, 10, 11, 12)) {table <-"C.9"}
+
+          if (y == 14 & m > 7) {
+            for (i in 1:2) {
+              table <- ifelse(i == 1,"c-25", "c-26")
+              if (m == 11) {table <- ifelse(i == 1, "C25", "C26")}
+              if (m == 8 ) {table <- ifelse(i == 1, "c-24", "c-24-a")}
+              Tableau <- read_excel(path = N1, sheet = table)
+              write.xlsx(
+                Tableau,
+                name,
+                sheetName = str_c(mois, annee, i),
+                append = TRUE,
+                showNA = FALSE
+              )
+            }
+          } else {
+            Tableau <- read_excel(path = N1, sheet = table, col_types = "text")
+            write.xlsx(
+              Tableau,
+              name,
+              sheetName = str_c(mois, annee),
+              append = TRUE,
+              showNA = FALSE
+            )
+          }
+          # PRICES
+          # Name of the file
+          name <- str_c(
+            "../data/raw/minagri/Prices/Prices_", annee, ".xlsx"
+          )
+
+          # Selecting the names of the sheets
+          table <- case_when(
+            (annee == 2014 & m == 1)            ~ as.character(regex("c-17", ignore_case = TRUE)),
+            (annee == 2014 & m == 2)            ~ as.character(regex("C-80", ignore_case = TRUE)),
+            (annee == 2014 & m == 3)            ~ as.character(regex("C-72", ignore_case = TRUE)),
+            (annee == 2014 & m == 4)            ~ as.character(regex("C-80", ignore_case = TRUE)),
+            (annee == 2014 & m %in% 4:8)        ~ as.character(regex("C-72", ignore_case = TRUE)),
+            (annee == 2014 & m >8)              ~ as.character(regex("C-76", ignore_case = TRUE)),
+            (annee == 2015 & ! m %in% c(2,4,6)) ~ as.character(regex("c-16", ignore_case = TRUE)),
+            (annee == 2015 & m %in% c(2,4,6))   ~ as.character(regex("C-16", ignore_case = TRUE)),
+            (annee == 2016 & m <= 6)            ~ as.character(regex("C.15", ignore_case = TRUE)),
+            (annee == 2016 & m >  6)            ~ as.character(regex("C.13", ignore_case = TRUE)),
+            (annee == 2016 & m == 7)            ~ as.character(regex("C. 13", ignore_case = TRUE)),
+          )
+          if (y == 16 & m == 7) {table <-"C. 13"}
+
+          Tableau <- read_excel(path = N2, sheet = table, col_types = "text")
+          write.xlsx(
+            Tableau,
+            name,
+            sheetName = str_c(mois, annee),
+            append = TRUE,
+            showNA = FALSE
+          )
+        }
+        if (y == 16 & m < 12) {
+          unlink(N, recursive = TRUE)
+        } else {
+          unlink(
+            str_c("../data/raw/minagri/", annee, "/", folder_name),
+            recursive = TRUE
+          )
+        }
+      }
+    }# End of LOOP 2
+    # END OF CONDITION 1
+  } else {
+    print("ERROR - NB MOIS =! NB LIENS")
+  }
+}
+```
+
+
+We define a function to extract data from the PDFs:
+```{r}
+#' Extract data from the PDF monthly reports from MINAGRI
+#' 
+#' @param annee year of the report
+#' @param mois month of the report
+#' @param adresse url of the report on www.midagri.gob.pe
+#' @param page page number to extract
+#' @param Cell1 name of the first cell to import
+extract_pdf_data <- function(annee,
+                             mois,
+                             adresse,
+                             page,
+                             Cell1) {
+
+  ## Defining the number of cultures in the table----
+  PageDeDonnes <- pdf_data(adresse)[[page]]
+  if (annee == 2 & mois == 2) {
+    PageDeDonnes[which((PageDeDonnes[,"text"] == "Año.?")),"x"] <-
+      as.numeric(PageDeDonnes[which((PageDeDonnes[,"text"] == Cell1)),"x"])
+  }
+
+  # Determining the begining of the table
+  x_Cell1 <- as.numeric(PageDeDonnes[which((PageDeDonnes[,"text"] == Cell1)), "x"])
+  y_Cell1 <- as.numeric(PageDeDonnes[which((PageDeDonnes[,"text"] == Cell1)), "y"])
+
+  # Looking for the lines with the same position as Cell1 or above
+  AboveLine1 <- PageDeDonnes[which((PageDeDonnes[,"x"] <= x_Cell1 + 1)), ]
+
+  ## Special case for 01/2003 ----
+  if ((annee == 3 & mois == 1) | (annee == 2 & mois < 8)) {
+    AboveLine1 <- PageDeDonnes[which((PageDeDonnes[, "x"] <= x_Cell1 + 10)), ]
+    x_Cell1 <- max(AboveLine1$x)}
+  # end of special case
+
+  x <-  which(
+    str_detect(AboveLine1$text, "Año.?") |
+      str_detect(AboveLine1$text, "paña")
+  )
+  AboveLine1[x, "x"] <- x_Cell1
+  if (any((AboveLine1[,"text"] == "Mensual"))) {
+    AboveLine1 <- AboveLine1[- which(AboveLine1[, "text"] == "Mensual"), ]
+  }
+
+  if (any((AboveLine1[, "x"] > x_Cell1))) {
+    AboveLine1[which(AboveLine1[,"x"]>x_Cell1) ,"x"] <- x_Cell1
+  }
+
+  AboveLine1 <- AboveLine1[order(AboveLine1$x, -AboveLine1$y), ]
+  positions  <- which((AboveLine1[, "text"] == Cell1))
+  x <- as.numeric(AboveLine1[positions, "x"])
+
+  # Line with the culture list
+  Cultures <- AboveLine1[AboveLine1$x == x, ]
+  if (dim(Cultures)[1] < 3) {
+    Cultures <- AboveLine1[AboveLine1$x %in% c(x,x-1), ]
+  }
+
+  if ((annee == 3 & mois == 1) | (annee ==2 & mois < 6)) {
+    colnames(Cultures) <- c(
+      "width_1", "height_1", "x_1", "y_1", "space_1", "text_1"
+    )
+    Cultures_1_0103 <- Cultures
+  }
+
+  # Selection of the previous line to determine the complete name
+  x_1 <- unique(AboveLine1$x)
+  x_1 <- x_1[-which((x_1 == x))]
+  Cultures_1 <- AboveLine1[AboveLine1$x == max(x_1), ]
+  if ((annee == 3 & mois == 1) | (annee ==2 & mois < 6)) {
+    Cultures_0103 <- Cultures_1
+  }
+  colnames(Cultures_1) <- c("width_1","height_1","x_1","y_1","space_1","text_1")
+
+  # Row matching to obtain full crop names
+  if ((annee == 3 & mois == 1) | (annee ==2 & mois < 6)) {
+    Cultures <- merge(
+      Cultures_0103,
+      Cultures_1_0103,
+      by.x = "y",
+      by.y = "y_1",
+      all.x = TRUE,
+      all.y=TRUE
+    )
+  } else {
+    Cultures <- merge(
+      Cultures,
+      Cultures_1,
+      by.x = "y",
+      by.y = "y_1",
+      all.x = TRUE,
+      all.y=TRUE
+    )
+  }
+
+  for (ii in 1:dim(Cultures)[1]) {
+    Cultures$nomcomplet[ii]  <- if (is.na(Cultures$text_1[ii])) Cultures$text[ii] else paste(Cultures$text_1[ii], Cultures$text[ii])
+    if (annee == 3 & mois == 1 ) {Cultures$nomcomplet[ii]  <- if (is.na(Cultures$text[ii])) Cultures$text_1[ii] else paste(Cultures$text_1[ii], Cultures$text[ii])}
+    Cultures$nomcomplet[ii]  <- str_replace_all(Cultures$nomcomplet[ii], "- ", "")
+    Cultures$nomcomplet[ii]  <- if (Cultures$nomcomplet[ii] == "de azúcar") paste("Caña", Cultures$nomcomplet[ii]) else Cultures$nomcomplet[ii]
+    Cultures$nomcomplet[ii]  <- if (Cultures$nomcomplet[ii] == "loctao") paste("Frijol", Cultures$nomcomplet[ii]) else Cultures$nomcomplet[ii]
+    Cultures$nomcomplet[ii]  <- if (Cultures$nomcomplet[ii] == "palo") paste("Frijol de", Cultures$nomcomplet[ii]) else Cultures$nomcomplet[ii]
+    Cultures$nomcomplet[ii]  <- if (Cultures$nomcomplet[ii] == "grano seco**") paste("Frijol", Cultures$nomcomplet[ii]) else Cultures$nomcomplet[ii]
+    Cultures$nomcomplet[ii]  <- if (Cultures$nomcomplet[ii] == "amiláceo") paste("Maíz", Cultures$nomcomplet[ii]) else Cultures$nomcomplet[ii]
+    Cultures$nomcomplet[ii]  <- if (Cultures$nomcomplet[ii] == "hua") paste("Cañi" ,Cultures$nomcomplet[ii], sep="") else Cultures$nomcomplet[ii]
+    Cultures$nomcomplet[ii]  <- if (Cultures$nomcomplet[ii] == "cáscara") paste("Arroz", Cultures$nomcomplet[ii]) else Cultures$nomcomplet[ii]
+    Cultures$nomcomplet[ii]  <- if (Cultures$nomcomplet[ii] == "rama") paste("Algodón", Cultures$nomcomplet[ii]) else Cultures$nomcomplet[ii]
+
+    if (! is.na(Cultures$text[ii]) & is.na(Cultures$text_1[ii]) & ii > 1 & ii < dim(Cultures)[1]) {
+      Cultures$nomcomplet[ii] <- if(Cultures$y[ii] == Cultures$y[ii-1] + 1) paste(Cultures$text_1[ii-1], Cultures$text[ii]) else Cultures$nomcomplet[ii]
+      Cultures$nomcomplet[ii] <- if(Cultures$y[ii] == Cultures$y[ii+1] - 1) paste(Cultures$text_1[ii+1], Cultures$text[ii]) else Cultures$nomcomplet[ii]
+    }
+  }
+
+  # Discarding unmatched rows
+  ii = which(is.na(Cultures$x))
+  if (is.integer(ii) && length(ii) != 0) {Cultures <- Cultures[-ii, ]}
+
+  ii = which(Cultures$text == "a.")
+  if(is.integer(ii) && length(ii) != 0) {Cultures <- Cultures[-ii, ]}
+
+  ii = which(Cultures$text == "de")
+  if(is.integer(ii) && length(ii) != 0) {Cultures <- Cultures[-ii, ]}
+
+  isPlatano <-any(str_detect(PageDeDonnes$text, "Plátano"))
+  isFrijol <-any(str_detect(PageDeDonnes$text, "Frijol |seco"))
+
+  ## Special case for 01/2003
+  if ((annee == 3 & mois == 1) | annee == 2) {
+    if (page %in% c(30, 31)) {
+      Cultures <- as.data.table(
+        c("Departamento","Campaña", "Total","Arroz cáscara", "Maíz amiláceo",
+          "Frijol grano seco**","Frijol castlla", "Pallar","Zarandaja",
+          "Frijol de palo", "Garbanzo","Frijol loctao", "Lentaja", "Papa",
+          "Trigo", "Algodón rama", "Maíz duro", "Soya", "Sorgo grano",
+          "Marigold")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+
+    if (page %in% c(32, 33)) {
+      Cultures <- as.data.table(
+        c("Departamento", "Campaña", "Total", "Cebada grano", "Quinua",
+          "Cañihua", "Kiwicha","Haba grano", "Arveja grano", "Chocho tarhui",
+          "Olluco", "Oca", "Mashua", "Camote", "Yuca", "Cebolla", "Ajo",
+          "Tomate")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+
+    if (page %in% c(38, 39)) {
+      Cultures <- as.data.table(
+        c("Departamento","Años", "Total","Arroz cáscara", "Maíz amiláceo",
+          "Frijol grano seco**","Frijol castlla", "Pallar","Zarandaja",
+          "Frijol de palo", "Garbanzo","Frijol loctao", "Lentaja", "Papa",
+          "Trigo", "Maíz duro","Soya", "Sorgo grano", "Marigold")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+
+    if (page %in% c(40,41)) {
+      Cultures <- as.data.table(
+        c("Departamento", "Años", "Cebada grano", "Quinua","Cañihua","Kiwicha",
+          "Haba grano", "Arveja grano", "Chocho tarhui", "Olluco", "Oca",
+          "Mashua", "Camote", "Yuca", "Cebolla", "Ajo", "Tomate")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+
+
+    if (page %in% c(44, 45)) {
+      Cultures <- as.data.table(
+        c("Departamento","Años", "Arroz cáscara", "Maíz amiláceo",
+          "Frijol grano seco**","Frijol castlla", "Pallar","Zarandaja",
+          "Frijol de palo", "Garbanzo","Frijol loctao", "Lentaja", "Papa",
+          "Trigo","Plátano", "Algodón rama", "Maíz duro", "Soya",
+          "Sorgo grano", "Caña de azúcar", "Café", "Espárrago", "Marigold")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+
+    if (page %in% c(46, 47)) {
+      Cultures <- as.data.table(
+        c("Departamento", "Años", "Cebada grano", "Quinua","Cañihua",
+          "Kiwicha","Haba grano", "Arveja grano", "Chocho tarhui", "Olluco",
+          "Oca", "Mashua", "Camote", "Yuca", "Cebolla", "Ajo", "Tomate")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+
+    if (page %in% c(112,113)) {
+      Cultures <- as.data.table(
+        c("Departamento", "Año", "Arroz cáscara", "Maíz amiláceo","Trigo",
+          "Camote", "Papa", "Yuca", "Algodón rama", "Espárrago", "Maíz duro",
+          "Marigold", "Soya", "Café")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+
+    if (page %in% c(114,115)) {
+      Cultures <- as.data.table(
+        c("Departamento", "Año", "Ajo", "Cebolla", "Maíz Choclo", "Tomate",
+          "Arveja grano", "Haba grano","Limón", "Mandarina", "Manzana",
+          "Naranja", "Papaya", "Palta", "Piña")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+  } else {
+    Cultures <- Cultures[order(-Cultures$y), ]
+    Cultures$nomcomplet[2] <-
+      if (str_detect(Cultures$nomcomplet[2],"ña")) "Campaña" else Cultures$nomcomplet[2]
+
+    # Selection des donnees d'interet
+    Cultures <-Cultures[, c("x","y","nomcomplet")]  |>
+      mutate(
+        nomcomplet = case_when(
+          str_detect(nomcomplet,"Cañi")      ~ "Cañihua",
+          str_detect(nomcomplet,"seco")      ~ "Frijol grano seco**",
+          str_detect(nomcomplet,"paña")      ~ "Campaña",
+          str_detect(nomcomplet,"daja")      ~ "Zarandaja",
+          str_detect(nomcomplet,"duro")      ~  "Maíz duro",
+          str_detect(nomcomplet,"banzo")     ~  "Garbanzo",
+          str_detect(nomcomplet,"de azúcar") ~  "Caña de azúcar",
+          str_detect(nomcomplet,"Kiwi")      ~  "Kiwicha",
+          TRUE ~ nomcomplet
+        )
+      ) |>
+      mutate(n = duplicated(nomcomplet)) |>
+      filter(! n ==T ) |>
+      select(-n)
+
+  }
+
+  if (y == 4 & m > 6 & page %in% c(38, 39) ) {
+    Cultures <- as.data.table(
+      c("Departamento", "Años","Total", "Arroz cáscara",	"Maíz amiláceo",
+        "Frijol grano seco**",	"Frijol castlla",	"Pallar",	"Zarandaja",
+        "Frijol de palo",	"Garbanzo", "Frijol loctao",	"Lenteja",	"Papa",
+        "Trigo",	"Maíz duro",	"Soya",	"Sorgo grano",	"Caña de azúcar" )
+    )
+    colnames(Cultures) <- "nomcomplet"
+  }
+
+  if (page > 100) {
+    if (page %in% c(108, 109, 110, 112, 113)) {
+      if (isFrijol == T) {
+        Cultures <- as.data.table(
+          c("Departamento", "Año", "Arroz cáscara", "Maíz amiláceo",
+            "Trigo", "Frijol grano seco", "Camote", "Papa", "Yuca",
+            "Algodón rama", "Espárrago", "Maíz duro",  "Marigold", "Soya",
+            "Café")
+        )
+        colnames(Cultures) <- "nomcomplet"
+      } else {
+        Cultures <- as.data.table(
+          c("Departamento", "Año", "Arroz cáscara", "Maíz amiláceo","Trigo",
+            "Camote", "Papa", "Yuca", "Algodón rama", "Espárrago", "Maíz duro",
+            "Marigold", "Soya", "Café")
+        )
+        colnames(Cultures) <- "nomcomplet"
+      }
+    }
+
+    if (page %in% c(111, 114, 115)) {
+      if (isPlatano == T) {
+        Cultures <- as.data.table(
+          c("Departamento", "Año", "Ajo", "Cebolla", "Maíz Choclo", "Tomate",
+            "Arveja grano", "Haba grano","Limón", "Mandarina", "Manzana",
+            "Naranja", "Papaya", "Palta", "Piña","Plátano")
+        )
+        colnames(Cultures) <- "nomcomplet"
+      } else {
+        Cultures <- as.data.table(
+          c("Departamento", "Año", "Ajo", "Cebolla", "Maíz Choclo", "Tomate",
+            "Arveja grano", "Haba grano","Limón", "Mandarina", "Manzana",
+            "Naranja", "Papaya", "Palta", "Piña")
+        )
+        colnames(Cultures) <- "nomcomplet"
+      }
+    }
+
+    if (annee == 2 & mois < 8 & page %in% c(111, 112)) {
+      if (isPlatano == T) {
+        Cultures <- as.data.table(
+          c("Departamento", "Año", "Ajo", "Cebolla", "Maíz Choclo", "Tomate",
+            "Arveja grano", "Haba grano","Limón", "Mandarina", "Manzana",
+            "Naranja", "Papaya", "Palta", "Piña","Plátano")
+        )
+        colnames(Cultures) <- "nomcomplet"
+      } else {
+        Cultures <- as.data.table(
+          c("Departamento", "Año", "Ajo", "Cebolla", "Maíz Choclo", "Tomate",
+            "Arveja grano", "Haba grano","Limón","Mandarina", "Manzana",
+            "Naranja", "Papaya", "Palta", "Piña")
+        )
+        colnames(Cultures) <- "nomcomplet"}
+    }
+
+    if (annee == 2 & mois == 7 & page == 110) {
+      Cultures <- as.data.table(
+        c("Departamento", "Año", "Ajo", "Cebolla", "Maíz Choclo", "Tomate",
+          "Arveja grano", "Haba grano","Limón", "Mandarina", "Manzana",
+          "Naranja", "Papaya", "Palta", "Piña","Plátano")
+      )
+      colnames(Cultures) <- "nomcomplet"
+    }
+  }
+
+  ## Downloading the table----
+  tx <- pdf_text(adresse)[[page]]
+  tx2 <- unlist(str_split(tx, "[\\r\\n]+"))
+  tx3 <- as.data.frame(
+    str_split_fixed(str_trim(tx2), "\\s{2,}", dim(Cultures)[1])
+  )
+
+  # Replacing the name of the row "Cultures"
+  n <-  which(str_detect(tx3$V1, Cell1))
+
+  tx3[n, ] <- Cultures$nomcomplet
+  if(str_detect(tx3[n + 1, 2], "[:digit:]{4}|[:digit:]{2}[:punct:][:digit:]{2}") == F) {
+    tx3 <- tx3[-(n + 1), ]
+  }
+  tx3 <- tx3[-(n - 1), ]
+
+  if (any(str_detect(tx3$V1, "Estadística"))) {
+    tx3 <- tx3[-which(str_detect(tx3$V1, "Estadística")), ]
+  }
+
+  if (any(str_detect(tx3$V1, "cáscara"))) {
+    n <- which(str_detect(tx3$V1, "cáscara"))
+
+    if (sum(str_detect(tx3[n-1,],"Arroz")) > 0) {
+      tx3[n-1,which(str_detect(tx3[n - 1,],"Arroz"))[1]] <- "Arroz cáscara"
+    }
+    if (sum(str_detect(tx3[n-1,],"Maíz")) > 0) {
+      tx3[n-1,which(str_detect(tx3[n - 1,],"Maíz"))[1]] <- "Maíz amiláceo"
+    }
+    if (sum(str_detect(tx3[n-1,],"Maíz")) > 1) {
+      tx3[n-1,which(str_detect(tx3[n - 1, ],"Maíz"))[2]] <- "Maíz duro"
+    }
+    if (sum(str_detect(tx3[n-1,],"Frijol")) > 0) {
+      tx3[n-1,which(str_detect(tx3[n - 1, ],"Frijol"))[1]] <- "Frijol grano seco"
+    }
+    if (sum(str_detect(tx3[n-1,],"Frijol")) > 1) {
+      tx3[n-1,which(str_detect(tx3[n - 1, ],"Frijol"))[2]] <- "Frijol castlla"
+    }
+    if (sum(str_detect(tx3[n-1,],"Frijol")) > 2) {
+      tx3[n-1,which(str_detect(tx3[n - 1, ],"Frijol"))[3]] <- "Frijol de palo"
+    }
+    if (sum(str_detect(tx3[n-1,],"Frijol")) > 3) {
+      tx3[n-1,which(str_detect(tx3[n - 1, ],"Frijol"))[4]] <- "Frijol loctao"
+    }
+    if (sum(str_detect(tx3[n-1,],"Algodón")) > 0) {
+      tx3[n-1,which(str_detect(tx3[n - 1, ],"Algodón"))[1]] <- "Algodón rama"
+    }
+    if (sum(str_detect(tx3[n-1,],"Sorgo")) > 0) {
+      tx3[n-1,which(str_detect(tx3[n - 1, ],"Sorgo"))[1]] <- "Sorgo grano"
+    }
+    if (sum(str_detect(tx3[n-1,],"Caña")) > 0) {
+      tx3[n-1,which(str_detect(tx3[n - 1, ],"Caña"))[1]] <- "Caña de azúcar"
+    }
+    tx3 <- tx3[-n, ]
+  }
+  if (annee == 2 & mois == 1 ) {
+    tx3 <- tx3 |>
+      mutate(
+        V1 = replace(V1, V1== 2001, 2002),
+        V1 = replace(V1, V1== 2000, 2001),
+        V2 = replace(V2, V2== 2001, 2002),
+        V2 = replace(V2, V2== 2000, 2001)
+      )
+  }
+  annee <-  ifelse(
+    annee < 10,
+    yes = paste("200",annee, sep=""),
+    no = paste("20",annee, sep="")
+  )
+
+  if (any(str_detect(tx3$V1, c("Total nacional 200|Andahuaylas 200")))) {
+    n <- str_which(
+      tx3$V1,
+      "(Total nacional) |(Huancavelica) |(Madre de Dios) |(Andahuaylas) [[:digit:]]{4}"
+    )
+    for (ii in n) {
+      for (j in dim(Cultures)[1]:3) {
+        tx3[ii, j] <- tx3[ii, j - 1]
+      }
+      text <- as.data.frame(str_split(tx3[ii,1], "200"))
+      tx3[ii,1] <- text[1,]
+      tx3[ii,2] <- paste("200", text[2,], sep = "")
+    }
+  }
+
+  n <- which(
+    tx3$V1 == as.character(as.numeric(annee)-1) | tx3$V1 == as.character(as.numeric(annee)) |
+      tx3$V1 == paste(str_sub(as.numeric(annee) - 2, 3, 4), "-", str_sub(as.numeric(annee) - 1, 3, 4), sep = "") |
+      tx3$V1 == paste(str_sub(as.numeric(annee) - 1, 3, 4), "-", str_sub(as.numeric(annee), 3, 4), sep = "") |
+      tx3$V1 == paste(str_sub(as.numeric(annee), 3, 4), "-", str_sub(as.numeric(annee) + 1, 3, 4), sep = "")
+  )
+
+  for (ii in n) {
+    for (j in dim(Cultures)[1]:2) {
+      tx3[ii, j] <- tx3[ii, j - 1]
+    }
+    ifelse(tx3[ii - 1, 1] == Cell1, tx3[ii, 1] <-
+             tx3[ii + 1, 1],  tx3[ii, 1] <- tx3[ii - 1, 1])
+  }
+  tx3
+}
+```
+
+
+```{r}
+#' Importing data where table is missing
+#'
+#' @param y last digit of the year (20..)
+#' @param mm month (numeric)
+#' @param type type of variable ("Production" for production, "Superficies_R"
+#'   for harvested surface, "Superficies" for planted surface)
+missing_table <- function(y,
+                          mm,
+                          type = c("Production", "Superficies_R",
+                                   "Superficies")) {
+  data_mm <- NULL
+
+  for (ii in 0:1) {
+    if (mm == 12) {
+      m_1 <- mm - 1
+      y1  <- y + 1
+      year <- 2000 + y
+      year1 <- 2000 + y + 1
+
+      if (type == "Production") {
+        ## Production, m==12----
+        # File name of the next year
+        file_name <- str_c(
+          "../data/raw/minagri/", type, "/", type, "_", year1, ".xlsx"
+        )
+        sheet <- str_c(mm, year1, ii + 1)
+        data_m_y1 <- import_monthly_regional_values_P_year_P(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_y1 = as.numeric(gsub(" ", "", value))) |>
+          select(-value)
+
+        sheet <- str_c(m_1, year1, ii + 1)
+        data_m_1_y1 <- import_monthly_regional_values_P_year_P(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1_y1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month_1 = month) |>
+          select(-value)
+
+        # Current year
+        file_name <- str_c(
+          "../data/raw/minagri/", type, "/", type, "_", year, ".xlsx"
+        )
+        sheet <- str_c(m_1, year, ii + 1)
+        data_m_1_y <- import_monthly_regional_values_P_year_P(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1_y = as.numeric(gsub(" ", "", value))) |>
+          select(-value)
+
+        data_mm_y <- merge(data_m_y1,data_m_1_y1) |>
+          mutate(diff = value_m_y1 - value_m_1_y1) |>
+          select(region, product, diff) |>
+          merge(data_m_1_y) |>
+          mutate(value_num = value_m_1_y + diff) |>
+          select(-diff, - value_m_1_y) |>
+          mutate(month = as.numeric(month + 1)) |>
+          relocate(product, .after = month)
+
+        data_mm <- rbind(data_mm, data_mm_y)
+      }
+
+      if (type == "Superficies_R") {
+        ## Superficies_R, m==12----
+        # Following year
+        file_name <- str_c(
+          "../data/raw/minagri/Surface_R/", type, "_", year1, ".xlsx"
+        )
+        sheet <- str_c(mm,year1, ii + 1)
+        data_m_y1 <- import_monthly_regional_values_year_SR(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_y1 = as.numeric(gsub(" ", "", value))) |>
+          select(-value)
+
+        sheet <- str_c(m_1, year1, ii + 1)
+        data_m_1_y1 <- import_monthly_regional_values_year_SR(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1_y1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month_1 = month) |>
+          select(-value)
+
+        # Current year
+        file_name <- str_c(
+          "../data/raw/minagri/Surface_R/", type, "_", year, ".xlsx"
+        )
+        sheet <- str_c(m_1, year, ii + 1)
+        data_m_1_y <- import_monthly_regional_values_year_SR(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0)  |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1_y = as.numeric(gsub(" ", "", value))) |>
+          select(-value)
+
+        data_mm_y <- merge(data_m_y1, data_m_1_y1) |>
+          mutate(diff = value_m_y1 - value_m_1_y1) |>
+          select(region, product, diff) |>
+          merge(data_m_1_y) |>
+          mutate(value_num = value_m_1_y + diff) |>
+          select(-diff, - value_m_1_y) |>
+          mutate(month = as.numeric(month + 1)) |>
+          relocate(product, .after = month)
+
+        data_mm <- rbind(data_mm, data_mm_y)
+      }
+
+      if (type == "Superficies") {
+        ## Superficies, m==12----
+        # Following year
+        file_name <- str_c(
+          "../data/raw/minagri/Surface/", type, "_", year1, ".xlsx"
+        )
+
+        sheet <- str_c(mm, year1, ii + 1)
+        data_m_y1 <- import_monthly_regional_values_year_S(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_y1 = as.numeric(gsub(" ", "", value))) |>
+          select(-value)
+
+        sheet <- str_c(m_1, year1, ii + 1)
+        data_m_1_y1 <- import_monthly_regional_values_year_S(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1_y1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month_1 = month) |>
+          select(-value)
+
+        # Current year
+        file_name <- str_c(
+          "../data/raw/minagri/Surface/", type, "_", year, ".xlsx"
+        )
+        sheet <- str_c(m_1, year, ii + 1)
+        data_m_1_y <- import_monthly_regional_values_year_S(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        )  |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1_y = as.numeric(gsub(" ", "", value))) |>
+          select(-value)
+
+        data_mm_y <- merge(data_m_y1, data_m_1_y1) |>
+          mutate(diff = value_m_y1 - value_m_1_y1) |>
+          select(region, product, diff) |>
+          merge(data_m_1_y) |>
+          mutate(value_num = value_m_1_y + diff) |>
+          select(-diff, - value_m_1_y) |>
+          mutate(month = as.numeric(month + 1)) |>
+          relocate(product, .after = month)
+
+        data_mm <- rbind(data_mm, data_mm_y)
+      }
+    } else {
+      # If m != 12
+      m_1 <- mm - 1
+      m1  <- mm + 1
+      year <- 2000 + y
+
+      if (type == "Production") {
+        ## Production, m!=12----
+        file_name <- str_c(
+          "../data/raw/minagri/", type, "/", type, "_", year, ".xlsx"
+        )
+
+        # previous month
+        sheet <- str_c(
+          str_pad(m_1, width = 2, side = "left", pad = "0"),
+          year,
+          ii + 1
+        )
+        data_m_1 <- import_monthly_regional_values_P_year_P(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month_1 = month) |>
+          select(-value)
+
+        # following month
+        sheet <- str_c(
+          str_pad(m1, width = 2, side = "left", pad = "0"),
+          year,
+          ii + 1
+        )
+        data_m1 <- import_monthly_regional_values_P_year_P(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month1 = month) |>
+          select(-value)
+      }
+
+      if (type == "Superficies_R"){
+        ## Superficies_R, m!=12----
+        file_name <- str_c(
+          "../data/raw/minagri/Surface_R/", type,"_", year, ".xlsx"
+        )
+
+        # previous month
+        sheet <- str_c(
+          str_pad(m_1, width = 2, side = "left", pad = "0"),
+          year,
+          ii + 1
+        )
+        data_m_1 <- import_monthly_regional_values_year_SR(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month_1 = month) |>
+          select(-value)
+
+        # following month
+        sheet <- str_c(
+          str_pad(m1, width = 2, side = "left", pad = "0"),
+          year,
+          ii + 1
+        )
+        data_m1 <- import_monthly_regional_values_year_SR(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month1 = month) |>
+          select(-value)
+      }
+
+      if (type == "Superficies") {
+        ## Superficies, m!=12----
+        file_name <- str_c(
+          "../data/raw/minagri/Surface/", type, "_", year, ".xlsx"
+        )
+
+        # previous month
+        sheet <- str_c(
+          str_pad(m_1, width = 2, side = "left", pad = "0"),
+          year,
+          ii + 1
+        )
+        data_m_1 <- import_monthly_regional_values_year_S(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m_1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month_1 = month) |>
+          select(-value)
+
+        # following month
+        sheet <- str_c(
+          str_pad(m1, width = 2, side = "left", pad = "0"),
+          year,
+          ii + 1
+        )
+        data_m1 <- import_monthly_regional_values_year_S(
+          sheet_name = sheet,
+          file = file_name,
+          anneesup = 0
+        ) |>
+          mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+          mutate(value_m1 = as.numeric(gsub(" ", "", value))) |>
+          rename(month1 = month) |>
+          select(-value)
+      }
+
+      data_mm_y <- merge(data_m1,data_m_1) |>
+        mutate(
+          month = as.numeric(month_1 + 1),
+          value_num = (value_m1 - value_m_1) / 2 + value_m_1) |>
+        select(-value_m1, -month1, -value_m_1, -month_1) |>
+        relocate(product, .after = month)
+
+      data_mm <- rbind(data_mm, data_mm_y)
+
+    }
+  }
+  data_mm
+}
+```
+
+
+
+### Load Data
+
+We define a function to format the header of the data.
+```{r}
+#' Format header (removing unecessary values)
+#' 
+#' @param x (vector) of string
+format_header <- function(x) {
+  if (all(is.na(x))) {
+    return("")
+  }
+  replace_na(x, "") |>
+    str_replace_all("\\.{3}", "") |>
+    str_remove("[[:digit:]]/") |>
+    str_c(collapse = " ") |>
+    str_to_lower() |>
+    str_replace_all("[[:blank:]]{2,}", " ") |>
+    str_remove("- ") |>
+    str_trim()
+}
+```
+
+
+#### Regional Production
+
+```{r}
+#' Import monthly regional agricultural values from the Excel file,
+#' for a given month
+#' 
+#' @param sheet_name name of the Excel sheet
+#' @param file path to the Excel File
+#' @param anneesup 
+import_monthly_regional_values_P_year_P <- function(sheet_name,
+                                                    file,
+                                                    anneesup) {
+  # The first two digits of the name: month
+  # the next four: the four digits of the year
+  # last digit: index of the sheet for a given month and
+  # year (we will not use it)
+  year  <- str_sub(sheet_name, 3, 6) |> as.numeric()
+  month <- str_sub(sheet_name, 1, 2) |> as.numeric()
+  tmp   <- suppressMessages(
+    read_excel(
+      path = file,
+      sheet = sheet_name,
+      col_types = "text", n_max = 15, col_names = FALSE
+    )
+  )
+
+  # We can use the first occurrence of "Años" to determine
+  # the beginning of the table
+  ind_row_year <- str_which(tmp[[3]], regex("años?", ignore_case = TRUE)) |>
+    first()
+
+
+  # The first row of the header of the table is contained in the previous line
+  skip_head <- ifelse(year >= 2008,ind_row_year ,ind_row_year-1)
+  skip_head <- ifelse(year == 2008 & month < 3, skip_head -1 ,skip_head)
+  
+  # The body of the table
+  prod_region_tmp <-
+    suppressMessages(
+      read_excel(
+        path = file,
+        sheet = sheet_name,
+        col_types = "text", skip = skip_head, col_names = F
+      )
+    ) |> 
+    dplyr::select(
+      - where( 
+        ~ all(is.na(.))
+        )
+      )
+
+  header_1 <- suppressMessages(
+    read_excel(
+      path = file,
+      sheet = sheet_name,
+      skip = skip_head-2, n_max = 3, col_names = F
+    )
+  ) |> 
+    dplyr::select(
+      - where( 
+        ~ all(is.na(.))
+        )
+      )
+
+
+
+  header_2 <- header_1 |>
+    summarise(
+      across(
+        .cols = everything(),
+        .fns = ~format_header(.x)
+      )
+    )
+
+  colnames(prod_region_tmp) <- as.character(header_2)
+  if (colnames(prod_region_tmp)[2] == "") {
+    colnames(prod_region_tmp)[2] <- "departamento"
+  }
+  if (any(str_detect(colnames(prod_region_tmp), "departamento"), na.rm = T)) {
+    ind_dep_current <- which(str_detect(colnames(prod_region_tmp), "departamento"))
+    colnames(prod_region_tmp)[ind_dep_current] <- "departamento"
+  }
+
+  # Removing columns with no name
+  ind <- !is.na(colnames(prod_region_tmp)) & (colnames(prod_region_tmp) != "")
+  prod_region_tmp <-
+    prod_region_tmp |>
+    dplyr::select(!!!colnames(prod_region_tmp)[ind])
+
+  # Removing rows with all NAs
+  prod_region_tmp <-
+    prod_region_tmp |>
+    filter_all(any_vars(!is.na(.)))
+
+  # Removing rows where "Continúa" is found
+  prod_region_tmp <-
+    prod_region_tmp |>
+    filter_all(
+      any_vars(
+        !str_detect(., regex(pattern = "Continúa", ignore_case = TRUE))
+      )
+    )
+
+  # Removing the first colomn if row index
+  if (str_detect(colnames(prod_region_tmp)[1], "[aeiou]") == FALSE) {
+    prod_region_tmp <- prod_region_tmp[-1]
+  }
+
+  # The name of the first column differs accross sheets (departemento or region)
+  name_first_col <- colnames(prod_region_tmp)[1]
+
+  if (year < 2015) {
+    if (! name_first_col %in% c("departamento", "región")) {
+      warning(str_c("Issue with sheet: ", sheet_name))
+      return(NULL)
+    }
+  }
+
+  prod_region_tmp <-
+    prod_region_tmp |>
+    rename(region := !!name_first_col)
+
+  if (any(str_detect(colnames(prod_region_tmp), "^año$"))) {
+    prod_region_tmp <-
+      prod_region_tmp |> rename(year = año)
+  } else {
+    prod_region_tmp <-
+      prod_region_tmp |> rename(year = años)
+  }
+
+  prod_region_tmp <-
+    prod_region_tmp |>
+    filter(!is.na(year), ! year %in% c("Años", "Año"))
+
+  # The sheet may contain values for the department Cajamarca
+  # AND the capital of that department named also Cajamarca
+  prod_region_tmp <-
+    prod_region_tmp |>
+    group_by(region, year) |>
+    mutate(
+      region = ifelse(
+        region == "Cajamarca" & row_number() == 1,
+        yes = "Cajamarca_R",
+        no = region
+      )
+    ) |>
+    ungroup()
+
+  prod_region_tmp <-
+    prod_region_tmp |>
+    mutate(
+      region = ifelse(region == "Lima provincias", yes = "Lima", no = region)
+    )
+
+
+  # The production of each product is given in two rows, but the product name
+  # is not repeated
+  prod_region_tmp <-
+    prod_region_tmp |>
+    fill(region, .direction = "down")
+  if (year == 2005) {
+    prod_region_tmp$region[1]<- "Total Nacional"
+  }
+
+  # Removing sub-regional data
+  prod_region_tmp <-
+    prod_region_tmp |>
+    filter(! region %in% c("Cajamarca", "Chota", "Jaén",
+                           "Abancay","Andahuaylas")
+    )
+
+  if (year == 2015 & any(colnames(prod_region_tmp) == "región")) {
+    q <- which(colnames(prod_region_tmp) == "región")
+    if (q > 0) {
+      prod_region_tmp <- prod_region_tmp |>
+        dplyr::select(-all_of(q))
+    }
+  }
+
+  resul <-
+    prod_region_tmp |>
+    pivot_longer(cols = -c(region, year), names_to = "product")
+
+  if (anneesup == 1) {
+    resul <-
+      resul |>
+      filter(year == max(year))
+  } else {
+    # Keeping only the last year available
+    resul <-
+      resul |>
+      filter(year == min(year))
+  }
+
+  resul <-
+    resul |>
+    mutate(
+      product = ifelse(product == "arveja gr. seco", yes = "arveja grano seco", no = product),
+      product = ifelse(product == "frijol grano seco**", yes = "frijol grano seco", no = product),
+      product = ifelse(product == "frijol palo", yes = "frijol de palo", no = product),
+      product = ifelse(product == "frijol castlla", yes = "frijol castilla", no = product),
+      product = ifelse(product == "lentaja", yes = "lenteja", no = product),
+      product = ifelse(product == "frijol gr. seco", yes = "frijol grano seco", no = product),
+      product = ifelse(product == "haba gr. seco", yes = "haba grano seco", no = product),
+      product = ifelse(product == "maíz a. duro", yes = "maíz amarillo duro", no = product),
+      product = ifelse(product == "arveja gr. verde", yes = "arveja grano verde", no = product),
+      product = ifelse(product == "arveja gr. verde", yes = "arveja grano verde", no = product),
+      product = ifelse(product == "haba gr. verde", yes = "haba grano verde", no = product),
+      product = ifelse(product == "espá-rrago", yes = "espárrago", no = product),
+      product = ifelse(product == "manda-rina", yes = "mandarina", no = product),
+      product = ifelse(product == "maíz duro", yes = "maíz amarillo duro", no = product),
+      product = ifelse(product == "maíz am. duro", yes = "maíz amarillo duro", no = product),
+      product = ifelse(product == "pallar gr. seco", yes = "pallar grano seco", no = product),
+      product = ifelse(product == "pallar seco", yes = "pallar grano seco", no = product),
+      product = ifelse(product == "maíz amarillo duro", yes = "maíz amarillo duro", no = product)
+    )
+
+  resul |>
+    dplyr::mutate(month = month) |>
+    dplyr::select(region, year, month, product, value)
+}# End of import_monthly_regional_values_P_year_P()
+```
+
+
+```{r}
+#' Import monthly regional agricultural values from the Excel file,
+#' for all the months of the file.
+#'
+#' @param file path to the Excel File
+#' @param anneesup 
+#' @param timescale
+import_monthly_regional_values_P <- function(file,
+                                             anneesup,
+                                             timescale) {
+
+  sheet_names <- excel_sheets(file)
+  prod_region_monthly <- map(
+    sheet_names,
+    import_monthly_regional_values_P_year_P,
+    file = file,
+    anneesup = anneesup
+  ) |>
+    list_rbind()
+
+  # Cleaning years and changing type of values: from str to num
+  prod_region_monthly <-
+    prod_region_monthly |>
+    mutate(
+      year = str_remove(year, "p/?") |> as.numeric(),
+      value_num = as.numeric(gsub(" ", "", value)),
+      month = as.numeric(month)
+    )
+
+  # Values in 2014 to 2016 are expressed in thousands of tonnes
+  # These need to be expressed in tonnes
+  prod_region_monthly <-
+    prod_region_monthly |>
+    mutate(
+      value_num = ifelse(year %in% 2014:2015, value_num * 10^3, value_num)
+    )
+
+  # In addition, for the `Production_2014.xlsx` file, months 10 to 12
+  # report values in thousands of tonnes as well
+  if (str_detect(file, "Production_2014.xlsx$")) {
+    prod_region_monthly <-
+      prod_region_monthly |>
+      mutate(
+        value_num = ifelse(
+          month %in% c(10,11,12),
+          yes = value_num * 10^3,
+          no = value_num
+        )
+      )
+  }
+
+
+  # Removing the `value` columns to keep only the column with numerical values
+  prod_region_monthly <-
+    prod_region_monthly |>
+    dplyr::select(-value)
+
+  if (str_detect(file, "Production_2002.xlsx$")) {
+    for (i in c(3,6,9,12)) {
+      temp <- missing_table(y = 2, mm = i, type = "Production")
+      prod_region_monthly <- rbind(prod_region_monthly, temp)
+    }
+  }
+
+  if (str_detect(file, "Production_2003.xlsx$")) {
+    temp <- missing_table(y = 3, mm = 3, type = "Production")
+    prod_region_monthly <- rbind(prod_region_monthly, temp)
+
+  }
+# 
+#   if (str_detect(file, "Production_2008.xlsx$")) {
+#     # Problem with value in June 2007 for Cassava: same value as in May
+#     # Let us put the value for June as NA
+#     # (For some regions)
+#     prod_region_monthly <-
+#       prod_region_monthly |>
+#       mutate(
+#         value_num = ifelse(
+#           month == 6 & product == "yuca" & region %in% c(
+#             "Apurímac", "Arequipa", "Ayacucho", "Cusco", "Huancavelica",
+#             "Junín", "Loreto", "Madre de Dios", "Moquegua", "Moquegua",
+#             "Puno", "San Martín", "Tacna", "Ucayali"),
+#           yes = NA,
+#           no = value_num
+#             )
+#       )
+#   }
+
+  # Cleaning region names
+  # prod_region_monthly$region |> unique() |> sort()
+  prod_region_monthly <-
+    prod_region_monthly |>
+    mutate(region = replace(region, region=="Apurimac", "Apurímac")) |>
+    mutate(region = replace(region, region=="Cajamarca_R", "Cajamarca")) |>
+    mutate(region = replace(
+      x = region,
+      list = region %in% c("Nacional", "Total nacional", "TOTAL NACIONAL"),
+      values = "Total Nacional")
+    ) |>
+    filter(! product == 0)
+
+
+  if (str_detect(file, "Production_201(4|5).xlsx")) {
+    prod_region_monthly <- prod_region_monthly |>
+      mutate(
+        product = case_when(
+          str_detect(product, "arroz")            ~  "arroz cáscara",
+          str_detect(product, "banano")           ~  "plátano",
+          str_detect(product, "café")             ~  "café",
+          str_detect(product, "banano")           ~  "plátano",
+          str_detect(product, "caña")             ~  "caña de azúcar",
+          str_detect(product, "chocho")           ~  "chocho",
+          str_detect(product, "gar")              ~  "garbanzo",
+          str_detect(product, "caña")             ~  "caña de azúcar",
+          str_detect(product, "algodón")          ~  "algodón rama",
+          str_detect(product, "maíz amilaceo")    ~  "maíz amiláceo",
+          str_detect(product, "maíz amílaceo")    ~  "maíz amiláceo",
+          str_detect(product, "caña de azúcar para azúcar")   ~  "caña de azúcar",
+          str_detect(product, "arveja seca")      ~  "arveja grano seco",
+          str_detect(product, "arveja verde")     ~  "arveja grano verde",
+          str_detect(product, "loctao")           ~  "frijol loctao",
+          str_detect(product, "frijol seco")      ~  "frijol grano seco",
+          str_detect(product, "frijol castill")   ~  "frijol castilla",
+          str_detect(product, "haba seca")        ~  "haba grano seco",
+          str_detect(product, "haba seco")        ~  "haba grano seco",
+          str_detect(product, "haba verde")       ~  "haba grano verde",
+          str_detect(product, "limón sutil")      ~  "limón",
+          str_detect(product, "haba verde")       ~  "haba grano verde",
+          str_detect(product, "algodón rama")     ~  "algodón rama",
+          str_detect(product, "café")             ~  "café",
+          str_detect(product, "cañihua")          ~  "cañihua",
+          str_detect(product, "espárrago")        ~  "espárrago",
+          str_detect(product, "limón")            ~  "limón",
+          str_detect(product, "maíz amiláceo")    ~  "maíz amiláceo",
+          str_detect(product, "maíz choclo")      ~  "maíz choclo",
+          str_detect(product, "piña")             ~  "piña",
+          str_detect(product, "zaran-daja")       ~  "zarandaja",
+          TRUE ~ product
+        )
+      )
+
+  }
+
+  Production <- prod_region_monthly |>
+    arrange(region, product, desc(month)) |>
+    mutate(value_num = ifelse(is.na(value_num), yes = 0, no = value_num))
+
+  if (str_detect(file, "Production_2008.xlsx$")) {
+    # Problem with value in June 2007 for Cassava: same value as in May
+    # Let us put the value for June as NA
+    # (For some regions)
+    Production <-
+      Production |>
+      mutate(
+        value_num = ifelse(
+          month == 6 & product == "yuca" & region %in% c(
+            "Apurímac", "Arequipa", "Ayacucho", "Cusco", "Huancavelica",
+            "Junín", "Loreto", "Madre de Dios", "Moquegua", "Moquegua",
+            "Puno", "San Martín", "Tacna", "Ucayali"),
+          yes = NA,
+          no = value_num
+        )
+      )
+  }
+
+  Production <- Production |>
+    pivot_wider(names_from = month, values_from = value_num)
+
+  if (timescale == 1) {
+    # The production data in the file is a cumulative sum over the months
+    Production <-
+      cbind(
+        Production[1:3],
+        Production[4:14] - Production[5:15],
+        Production[15]
+      ) |>
+      pivot_longer(cols = -c(region, year, product), names_to = "month")
+    Production  <-
+      Production[with(Production, order(region, year, as.numeric(month), product, value)), ]
+  }
+
+  if (timescale == 3) {
+    Production <-
+      cbind(
+        Production[1:3],
+        Production[4] - Production[7],
+        Production[7] - Production[10],
+        Production[10] - Production[13],
+        Production[13]
+      ) |>
+      pivot_longer(cols = -c(region, year, product), names_to = "trim")
+    Production  <-
+      Production[with(Production, order(region, year, as.numeric(trim), product, value)), ]
+  }
+
+  if (timescale == 4) {
+    Production <-
+      cbind(
+        Production[1:3],
+        Production[4] - Production[8],
+        Production[8] - Production[12],
+        Production[12]
+      ) |>
+      pivot_longer(cols = -c(region, year, product), names_to = "quadrim")
+    Production  <-
+      Production[with(Production, order(region, year, as.numeric(quadrim), product, value)), ]
+  }
+
+  if (timescale == 6) {
+    Production <-
+      cbind(
+        Production[1:3],
+        Production[4] - Production[10],
+        Production[10]
+      ) |>
+      pivot_longer(cols = -c(region, year, product), names_to = "biannual")
+    Production  <-
+      Production[with(Production, order(region, year, as.numeric(biannual), product, value)), ]
+  }
+
+  if (timescale == 12) {
+    Production <-
+      cbind(Production[1:3], Production[4]) |>
+      rename(Prod_annual = "12")
+  }
+
+  if (str_detect(file, "Production_2015.xlsx$")) {
+    if(timescale == 12) {
+      Production <- Production |>
+        filter(!is.na(Prod_annual))
+    } else {
+      Production <- Production |>
+        filter(!is.na(value))
+    }
+
+  }
+  Production
+}# End of import_monthly_regional_values_P()
+```
+
+#### Regional Planted Surface
+
+```{r}
+#' Import monthly regional agricultural values from the Excel file,
+#' for a given month
+#' 
+#' @param sheet_name name of the Excel sheet
+#' @param file path to the Excel File
+#' @param anneesup
+import_monthly_regional_values_year_S <- function(sheet_name,
+                                                  file,
+                                                  anneesup) {
+  # The first two digits of the name: month
+  # the next four: the four digits of the year
+  # last digit: index of the sheet for a given month and year (we will note use it)
+
+  month <- str_sub(sheet_name, 1, 2) |> as.numeric()
+  year  <- str_sub(sheet_name, 3, 6) |> as.numeric()
+
+  tmp   <- suppressMessages(
+    read_excel(
+      path = file,
+      sheet = sheet_name,
+      col_types = "text", n_max = 15, col_names = FALSE)
+  )
+
+  # We can use the first occurrence of "Campaña" to determine the beginning of the table
+  ind_row_year <- str_which(tmp[[3]], regex("Cam?", ignore_case = TRUE)) |>
+    first()
+  if (sheet_name == "062015") {ind_row_year <-  7}
+
+  # The first row of the header of the table is contained in the previous line
+  skip_head <- ifelse(
+    year >= 2008,
+    ind_row_year - 1,
+    ind_row_year
+    )
+
+  # The body of the table
+  sup_region_tmp <-
+    suppressMessages(
+      read_excel(
+        path = file,
+        sheet = sheet_name,
+        col_types = "text", skip = skip_head, col_names = F
+      )
+    ) |> 
+    dplyr::select(
+      - where( 
+        ~ all(
+          is.na(.)
+          )
+        )
+      )
+  
+  ind_row_year2 <- 
+    str_which(tmp[[2]], regex("Total?", ignore_case = TRUE)) |> 
+    first()
+  
+  nmax = ifelse(ind_row_year2 - ind_row_year == 1, 1, 3)
+
+  header_1 <-
+    suppressMessages(
+      read_excel(
+        path = file,
+        sheet = sheet_name,
+        skip = skip_head- 1, n_max = nmax, col_names = F
+      )
+    ) |> 
+    select(
+      - where( 
+        ~ all(
+          is.na(.)
+          )
+        )
+      )
+
+
+  if (str_detect(file, "Superficies_2016.xlsx$")) {
+    header_1 <-
+      suppressMessages(
+        read_excel(
+          path = file,
+          sheet = sheet_name,
+          skip = skip_head-1, n_max = 1, col_names = F
+        )
+      )
+  }
+
+
+  header_2 <-
+    header_1 |>
+    summarise(
+      across(
+        .cols = everything(),
+        .fns = ~format_header(.x)
+      )
+    )
+
+  colnames(sup_region_tmp) <- as.character(header_2)
+  if (colnames(sup_region_tmp)[2] == ""){
+    colnames(sup_region_tmp)[2] <- "departamento"
+  }
+  if (any(str_detect(colnames(sup_region_tmp), "departamento"), na.rm = T)) {
+    ind_dep_current <- which(str_detect(colnames(sup_region_tmp), "departamento"))
+    colnames(sup_region_tmp)[ind_dep_current] <- "departamento"
+  }
+
+  # Removing columns with no name
+  ind <- !is.na(colnames(sup_region_tmp)) & (colnames(sup_region_tmp) != "")
+  sup_region_tmp <-
+    sup_region_tmp |>
+    dplyr::select(!!!colnames(sup_region_tmp)[ind])
+
+
+  if (str_detect(file, "Superficies_2016.xlsx$")) {
+    sup_region_tmp <- sup_region_tmp |>
+      mutate(
+        campaña = ifelse(
+          str_detect(campaña, regex(pattern = "Ago 14", ignore_case = TRUE)),
+          yes = "14-15",
+          no = campaña
+        ),
+        campaña = ifelse(
+          str_detect(campaña, regex(pattern = "Ago 2014", ignore_case = TRUE)),
+          yes = "14-15",
+          no = campaña
+        ),
+        campaña = ifelse(
+          str_detect(campaña, regex(pattern = "Ago 15", ignore_case = TRUE)),
+          yes = "15-16",
+          no = campaña
+        ),
+        campaña = ifelse(
+          str_detect(campaña, regex(pattern = "Ago 2015", ignore_case = TRUE)),
+          yes = "15-16",
+          no = campaña
+        ),
+        campaña = ifelse(
+          str_detect(campaña, regex(pattern = "Ago 16", ignore_case = TRUE)),
+          yes = "16-17",
+          no = campaña
+        ),
+        campaña = ifelse(
+          str_detect(campaña, regex(pattern = "Ago 2016", ignore_case = TRUE)),
+          yes = "16-17",
+          no = campaña
+        )
+      )
+  }
+
+  # Removing rows with all NAs
+  sup_region_tmp <-
+    sup_region_tmp |>
+    filter_all(any_vars(!is.na(.)))
+
+  # Removing rows where "Continúa" is found
+  sup_region_tmp <-
+    sup_region_tmp |>
+    filter_all(
+      any_vars(
+        !str_detect(., regex(pattern = "Continúa", ignore_case = TRUE))
+      )
+    )
+
+  # Removing the first colomn if row index
+  if (str_detect(colnames(sup_region_tmp)[1], "[aeiou]") == FALSE) {
+    sup_region_tmp <-   sup_region_tmp[-1]
+  }
+  # The name of the first column differs accross sheets (departemento or region)
+  name_first_col <- colnames(sup_region_tmp)[1]
+  if (! name_first_col %in% c("departamento", "región")) {
+    warning(str_c("Issue with sheet: ", sheet_name))
+    return(NULL)
+  }
+
+  sup_region_tmp <-
+    sup_region_tmp |>
+    rename(region := !!name_first_col)
+
+  if (sheet_name == "062015") {
+    sup_region_tmp <-
+      sup_region_tmp |>
+      rename(campaña = colnames(sup_region_tmp)[2])
+  }
+
+  sup_region_tmp$campaña <-
+    str_c("20",str_sub(sup_region_tmp$campaña, 1, 2)) |>
+    as.numeric()
+
+  sup_region_tmp <-
+    sup_region_tmp |> rename(year = campaña)
+
+  if (sheet_name == "062015") {
+    p <- str_which(sup_region_tmp$region, "Cajamarca")
+    sup_region_tmp$region[p] <- "Cajamarca_R"
+  } else {
+    p <- str_which(sup_region_tmp$region, "Cajamarca") |>
+      first()
+    sup_region_tmp$region[p] <- "Cajamarca_R"
+  }
+
+  sup_region_tmp <-
+    sup_region_tmp |>
+    filter(!is.na(year), ! year %in% "campaña")
+
+  # The production of each product is given in two rows, but the product name is not repeated
+  sup_region_tmp <-
+    sup_region_tmp |>
+    fill(region, .direction = "down")
+
+  # Removing sub-regional data
+  sup_region_tmp <-
+    sup_region_tmp |>
+    filter(
+      ! region %in% c("Cajamarca", "Chota", "Jaén", "Abancay","Andahuaylas")
+    )
+  if (any(str_detect(colnames(sup_region_tmp), regex(pattern = "ago", ignore_case = TRUE)) == T)) {
+    p <- which(str_detect(colnames(sup_region_tmp), regex(pattern = "ago", ignore_case = TRUE))==T)
+    colnames(sup_region_tmp)[p] <- "TOTAL"
+  }
+
+  resul <-
+    sup_region_tmp |>
+    pivot_longer(cols = -c(region, year), names_to = "product")
+
+  if (anneesup == 1) {
+    resul <-
+      resul |>
+      filter(year == max(year))
+  } else {
+    resul <-
+      resul |>
+      filter(year == min(year))
+  }
+
+  resul <-
+    resul |> rename(campana = year)
+
+  resul <- resul |>
+    mutate(month = month) |>
+    dplyr::select(region, campana, month, product, value)
+
+  resul <-
+    resul |>
+    mutate(
+      product = ifelse(
+        product == "arveja gr. seco",
+        yes = "arveja grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol grano seco**",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol palo",
+        yes = "frijol de palo",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol castlla",
+        yes = "frijol castilla",
+        no = product
+      ),
+      product = ifelse(
+        product == "lentaja",
+        yes = "lenteja",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol gr. seco",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba gr. seco",
+        yes = "haba grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "maíz a. duro",
+        yes = "maíz amarillo duro",
+        no = product
+      ),
+      product = ifelse(
+        product == "arveja gr. verde",
+        yes = "arveja grano verde",
+        no = product
+      ),
+      product = ifelse(
+        product == "arveja gr. verde",
+        yes = "arveja grano verde",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba gr. verde",
+        yes = "haba grano verde",
+        no = product
+      ),
+      product = ifelse(
+        product == "espá-rrago",
+        yes = "espárrago",
+        no = product
+      ),
+      product = ifelse(
+        product == "maíz duro",
+        yes = "maíz amarillo duro",
+        no = product
+      ),
+    ) |>
+    filter(! str_detect(product, "contin")) |>
+    filter(! str_detect(product, "conclusi"))
+  resul
+}# End of import_monthly_regional_values_year_S ()
+```
+
+```{r}
+#' Import monthly regional agricultural values from the Excel file,
+#' for all the months of the file.
+#'
+#' @param file path to the Excel File
+#' @param anneesup
+#' @param timescale
+import_monthly_regional_values_S <- function(file,
+                                             anneesup,
+                                             timescale){
+
+  sheet_names <- excel_sheets(file)
+  surf_region_monthly <- map(
+    sheet_names,
+    import_monthly_regional_values_year_S,
+    file = file,
+    anneesup = anneesup) |>
+    list_rbind()
+
+  # Cleaning years and changing type of values: from str to num
+  surf_region_monthly <-
+    surf_region_monthly |>
+    mutate(year = str_sub(sheet_names[1], 3, 6) |> as.numeric()) |>
+    mutate(year = ifelse(anneesup == 0, year - 1,  year)) |>
+    mutate(campana = str_remove(campana, "p/?") |> as.numeric()) |>
+    mutate(value_num = as.numeric(gsub(" ", "", value)))
+
+  # Values in 2014 to 2016 are expressed in thousands of tonnes
+  # These need to be expressed in tonnes
+  surf_region_monthly <-
+    surf_region_monthly |>
+    mutate(
+      value_num = ifelse(year %in% 2014:2015, value_num * 10^3, value_num),
+      value_num = ifelse(
+        str_detect(!!file, "Superficies_2014.xlsx$") & month %in% c(10,11,12),
+        yes = value_num * 10^3,
+        no = value_num
+      )
+    )
+
+
+  # Removing the `value` columns to keep only the column with numerical values
+  surf_region_monthly <-
+    surf_region_monthly |>
+    dplyr::select(-value)
+
+
+  if (str_detect(file, "Superficies_2002.xlsx$")) {
+    for (i in c(3,6,9,12)) {
+      temp <- missing_table(y = 2, mm = i, type = "Superficies") |>
+        mutate(year = year - 1)
+      surf_region_monthly <- rbind(surf_region_monthly, temp)
+    }
+  }
+
+  if (str_detect(file, "Superficies_2003.xlsx$")) {
+    temp <- missing_table(y = 3, mm = 3, type = "Superficies") |>
+      mutate(year = year -1)
+    surf_region_monthly <- rbind(surf_region_monthly, temp)
+
+  }
+
+  # Cleaning region names
+  surf_region_monthly$region |> unique() |> sort()
+  surf_region_monthly <-
+    surf_region_monthly |>
+    mutate(region = replace(region, region=="Apurimac", "Apurímac")) |>
+    mutate(region = replace(region, region=="Cajamarca_R", "Cajamarca")) |>
+    mutate(region = replace(
+      x = region,
+      list = region %in% c("Nacional", "Total nacional", "TOTAL NACIONAL",
+                           "TOTAL  NACIONAL"),
+      values = "Total Nacional")
+    )
+
+  surf_region_monthly <- surf_region_monthly |>
+    arrange(region, product, desc(month))
+
+  # Cleaning product names
+  surf_region_monthly <-
+    surf_region_monthly |>
+    # Replace extra spacing with only one space
+    mutate(product = str_replace_all(product, "[[:blank:]]{2,}", " "))
+
+  surf_region_monthly <-
+    surf_region_monthly |>
+    mutate(
+      product = ifelse(
+        product == "arveja gr. seco",
+        yes = "arveja grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol castlla",
+        yes = "frijol castilla",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol gr. seco",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba gr. seco",
+        yes = "haba grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "maíz a. duro",
+        yes = "maíz amarillo duro",
+        no = product
+      ),
+      product = ifelse(
+        product == "algodón",
+        yes = "algodón rama",
+        no = product
+      ),
+      product = ifelse(
+        product == "arroz",
+        yes = "arroz cáscara",
+        no = product
+      ),
+      product = ifelse(
+        product == "arveja grano",
+        yes = "arveja grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba grano",
+        yes = "haba grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "	maíz am duro",
+        yes = "maíz amarillo duro",
+        no = product
+      )
+    )
+
+
+  if (str_detect(file, "Superficies_201(4|5).xlsx$")) {
+    surf_region_monthly <- surf_region_monthly |>
+      mutate(
+        product = case_when(
+          str_detect(product, "arroz")           ~  "arroz cáscara",
+          str_detect(product, "banano")          ~  "plátano",
+          str_detect(product, "café")            ~  "café",
+          str_detect(product, "banano")          ~  "plátano",
+          str_detect(product, "caña")            ~  "caña de azúcar",
+          str_detect(product, "chocho")          ~  "chocho",
+          str_detect(product, "gar")             ~  "garbanzo",
+          str_detect(product, "caña")            ~  "caña de azúcar",
+          str_detect(product, "algodón")         ~  "algodón rama",
+          str_detect(product, "maíz a. duro")    ~  "maíz amarillo duro",
+          str_detect(product, "maíz amilaceo")   ~  "maíz amiláceo",
+          str_detect(product, "maíz amílaceo")   ~  "maíz amiláceo",
+          str_detect(product, "maíz amiláceo")   ~  "maíz amiláceo",
+          str_detect(product, "caña de azúcar para azúcar")   ~  "caña de azúcar",
+          str_detect(product, "arveja seca")     ~  "arveja grano seco",
+          str_detect(product, "arveja verde")    ~  "arveja grano verde",
+          str_detect(product, "loctao")          ~  "frijol loctao",
+          str_detect(product, "frijol seco")     ~  "frijol grano seco",
+          str_detect(product, "frijol castill")  ~  "frijol castilla",
+          str_detect(product, "haba seca")       ~  "haba grano seco",
+          str_detect(product, "haba seco")       ~  "haba grano seco",
+          str_detect(product, "haba verde")      ~  "haba grano verde",
+          str_detect(product, "limón sutil")     ~  "limón",
+          str_detect(product, "haba verde")      ~  "haba grano verde",
+          str_detect(product, "algodón rama")    ~  "algodón rama",
+          str_detect(product, "café")            ~  "café",
+          str_detect(product, "cañihua")         ~  "cañihua",
+          str_detect(product, "espárrago")       ~  "espárrago",
+          str_detect(product, "limón")           ~  "limón",
+          str_detect(product, "maíz amiláceo")   ~  "maíz amiláceo",
+          str_detect(product, "maíz choclo")     ~  "maíz choclo",
+          str_detect(product, "piña")            ~  "piña",
+          str_detect(product, "zaran-daja")      ~  "zarandaja",
+          TRUE ~ product
+        )
+      )
+  }
+
+  surf_region_monthly <-
+    surf_region_monthly |>
+    mutate(value_num = ifelse(is.na(value_num), yes = 0, no = value_num))|>
+    mutate(date = str_c(year, month, sep = "-")) |>
+    unique()
+
+  if (timescale == 12){
+    surf_region_monthly <- surf_region_monthly |>
+      filter(month == 7 ) |>
+      dplyr::select(region, product, year, value_num) |>
+      rename(surf_annual = value_num)
+  }
+  surf_region_monthly
+}# End of import_monthly_regional_values_S()
+```
+
+
+#### Regional Harvested Surface
+
+```{r}
+#' Import monthly regional agricultural values from the Excel file,
+#' for a given month
+#' 
+#' @param sheet_name name of the Excel sheet
+#' @param file path to the Excel File
+import_monthly_regional_values_year_SR <- function(sheet_name,
+                                                   file,
+                                                   anneesup) {
+  # The first two digits of the name: month
+  # the next four: the four digits of the year
+  # last digit: index of the sheet for a given month and year (we will note use it)
+
+  year  <- str_sub(sheet_name, 3, 6) |> as.numeric()
+  month <- str_sub(sheet_name, 1, 2) |> as.numeric()
+  tmp   <- suppressMessages(
+    read_excel(
+      path = file,
+      sheet = sheet_name,
+      col_types = "text", n_max = 15, col_names = FALSE
+    )
+  )
+
+  # We can use the first occurrence of "Años" to determine the beginning of the table
+  ind_row_year <- str_which(tmp[[3]], regex("años?", ignore_case = TRUE))
+  if(length(ind_row_year) > 0) ind_row_year <- first(ind_row_year)
+  name_camp <- 0
+  
+  if (length(ind_row_year) == 0) {
+    ind_row_year <- str_which(tmp[[3]], regex("Campaña?", ignore_case = TRUE)) |>
+      first()
+    name_camp <- 1
+  }
+  # The first row of the header of the table is contained in the previous line
+  skip_head <- ifelse(
+    year >= 2008, 
+    ind_row_year - 1,
+    ind_row_year
+    )
+
+  # The body of the table
+  surfR_region_tmp <-
+    suppressMessages(
+      read_excel(
+        path = file,
+        sheet = sheet_name,
+        col_types = "text", skip = skip_head, col_names = F
+      )
+    ) |> 
+    dplyr::select(
+       - where(
+         ~ all(is.na(.)
+               )
+         )
+       )
+
+  header_1 <-
+    suppressMessages(
+      read_excel(
+        path = file,
+        sheet = sheet_name,
+        skip = skip_head-2, n_max = 2, col_names = F
+      )
+    )
+
+
+  if(year < 2004){
+    header_1 <- 
+      suppressMessages(
+        read_excel(
+          path = file,
+          sheet = sheet_name, 
+          skip = skip_head-1, 
+          n_max = 1, 
+          col_names = F))
+  }
+  
+  if(year >= 2008){
+    header_1 <- 
+      suppressMessages(
+        read_excel(
+          path = file,
+          sheet = sheet_name, skip = skip_head-1, n_max = 2, col_names = F)) |> 
+      select(
+        - where( 
+          ~ all(is.na(.))
+          )
+        )
+  }
+  header_2 <-
+    header_1 |>
+    summarise(across(.cols = everything(), .fns = ~format_header(.x)))
+
+  colnames(surfR_region_tmp) <- as.character(header_2)
+  if (colnames(surfR_region_tmp)[2] == "") {
+    colnames(surfR_region_tmp)[2] <- "departamento"
+  }
+
+  # Removing columns with no name
+  ind <- !is.na(colnames(surfR_region_tmp)) & (colnames(surfR_region_tmp) != "")
+  surfR_region_tmp <-
+    surfR_region_tmp |> dplyr::select(!!!colnames(surfR_region_tmp)[ind])
+
+  # Removing rows with all NAs
+  surfR_region_tmp <-
+    surfR_region_tmp |>
+    filter_all(any_vars(!is.na(.)))
+
+  # Removing rows where "Continúa" is found
+  surfR_region_tmp <-
+    surfR_region_tmp |>
+    filter_all(
+      any_vars(!str_detect(., regex(pattern = "Continúa", ignore_case = TRUE)))
+    )
+
+  # Removing the first colomn if row index
+  if (str_detect(colnames(surfR_region_tmp)[1], "[aeiou]") == FALSE) {
+    surfR_region_tmp <-  surfR_region_tmp[-1]
+  }
+  # The name of the first column differs accross sheets (departemento or region)
+  name_first_col <- colnames(surfR_region_tmp)[1]
+  if (name_first_col %in% c("(ha) departamento","mes : enero 2002-2003* departamento")) {
+    colnames(surfR_region_tmp)[1] <- "departamento"
+    name_first_col <- colnames(surfR_region_tmp)[1]
+  }
+  if (! name_first_col %in% c("departamento", "región")) {
+    warning(str_c("Issue with sheet: ", sheet_name))
+    return(NULL)
+    # stop("First column is not region")
+  }
+
+  surfR_region_tmp <-
+    surfR_region_tmp |>
+    rename(region := !!name_first_col)
+  if (name_camp == 1) {
+    surfR_region_tmp <-
+      surfR_region_tmp |> rename(años = campaña)
+  }
+  if (any(str_detect(colnames(surfR_region_tmp), "^año$"))) {
+    surfR_region_tmp <-
+      surfR_region_tmp |> rename(year = año)
+  } else {
+    surfR_region_tmp <-
+      surfR_region_tmp |> rename(year = años)
+  }
+
+
+  if (any(str_detect(colnames(surfR_region_tmp), "ene"))) {
+    p <- which(str_detect(colnames(surfR_region_tmp), "ene"))
+    surfR_region_tmp <- surfR_region_tmp |>
+      dplyr::select(-p)
+  }
+
+  surfR_region_tmp <-
+    surfR_region_tmp |>
+    filter(!is.na(year), ! year %in% c("Años", "Año"))
+
+  p <- str_which(surfR_region_tmp$region,"Cajamarca") |>
+    first()
+  surfR_region_tmp$region[p] <- "Cajamarca_R"
+
+  # The production of each product is given in two rows, but the product name is not repeated
+  surfR_region_tmp <-
+    surfR_region_tmp |>
+    fill(region, .direction = "down")
+  if (year == 2005) {
+    surfR_region_tmp$region[1]<- "Total Nacional"
+  }
+
+  # Removing sub-regional data
+  surfR_region_tmp <-
+    surfR_region_tmp |>
+    filter(
+      ! region %in% c("Cajamarca", "Chota", "Jaén", "Abancay","Andahuaylas")
+    ) |>
+    filter(! region == "Región")
+
+  resul <-
+    surfR_region_tmp |>
+    pivot_longer(cols = -c(region, year), names_to = "product")
+
+  if (sheet_name == "062015") {
+    resul <- resul |>
+      filter(! year %in% c("Continúa", "29"))
+  }
+  if (anneesup == 1) {
+    resul <-
+      resul |>
+      filter(year == max(year))
+  } else {
+    resul <-
+      resul |>
+      filter(year == min(year))
+  }
+
+
+  resul <-
+    resul |>
+    mutate(
+      product = ifelse(
+        product == "arveja gr. seco",
+        yes = "arveja grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol grano seco**",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol palo",
+        yes = "frijol de palo",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol castlla",
+        yes = "frijol castilla",
+        no = product
+      ),
+      product = ifelse(
+        product == "lentaja",
+        yes = "lenteja",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol gr. seco",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba gr. seco",
+        yes = "haba grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "maíz a. duro",
+        yes = "maíz amarillo duro",
+        no = product
+      ),
+      product = ifelse(
+        product == "arveja gr. verde",
+        yes = "arveja grano verde",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba gr. verde",
+        yes = "haba grano verde",
+        no = product
+      ),
+      product = ifelse(
+        product == "espá-rrago",
+        yes = "espárrago",
+        no = product
+      ),
+      product = ifelse(
+        product == "maíz duro",
+        yes = "maíz amarillo duro",
+        no = product
+      ),
+    )
+
+  resul |>
+    mutate(month = month) |>
+    dplyr::select(region, year, month, product, value) |>
+    filter(! product == "total") |>
+    filter(! str_detect(product, "contin")) |>
+    filter(! str_detect(product, "conclusi"))
+
+}# End of import_monthly_regional_values_P_year_P()
+```
+
+
+```{r}
+#' Import monthly regional agricultural values from the Excel file,
+#' for all the months of the file.
+#'
+#' @param file path to the Excel File
+#' @param anneesup
+#' @param timescale
+import_monthly_regional_values_SR <- function(file,
+                                              anneesup,
+                                              timescale) {
+  sheet_names <- excel_sheets(file)
+  surfR_region_monthly <- map(
+    sheet_names,
+    import_monthly_regional_values_year_SR,
+    file = file,
+    anneesup = anneesup) |>
+    list_rbind()
+
+  # Cleaning years and changing type of values: from str to num
+  surfR_region_monthly <-
+    surfR_region_monthly |>
+    mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+    mutate(value_num = as.numeric(gsub(" ", "", value)))
+
+
+  # Values in 2014 to 2016 are expressed in thousands of tonnes
+  # These need to be expressed in tonnes
+  surfR_region_monthly <-
+    surfR_region_monthly |>
+    mutate(
+      value_num = ifelse(year %in% 2014:2015, value_num * 10^3, value_num),
+      value_num = ifelse(
+        str_detect(file, "Superficies_R_2014.xlsx$") & month %in% c(10,11,12),
+        yes = value_num * 10^3,
+        no = value_num
+      )
+    )
+
+
+
+  # Removing the `value` columns to keep only the column with numerical values
+  surfR_region_monthly <-
+    surfR_region_monthly |>
+    dplyr::select(-value)
+
+
+  if (str_detect(file, "Superficies_R_2002.xlsx$")) {
+    for (i in c(3,6,9,12)) {
+      temp <- missing_table(y = 2, mm = i, type = "Superficies_R")
+      surfR_region_monthly <- rbind(surfR_region_monthly, temp)
+    }
+  }
+
+  if (str_detect(file, "Superficies_R_2003.xlsx$")) {
+    temp <- missing_table(y = 3, mm = 3, type = "Superficies_R")
+    surfR_region_monthly <- rbind(surfR_region_monthly, temp)
+  }
+  # Cleaning region names
+  surfR_region_monthly <-
+    surfR_region_monthly |>
+    unique() |>
+    mutate(region = replace(region, region=="Apurimac", "Apurímac")) |>
+    mutate(region = replace(region, region=="Cajamarca_R", "Cajamarca")) |>
+    mutate(
+      region = replace(
+        x = region,
+        list = region %in% c("Nacional", "Total nacional", "TOTAL NACIONAL"),
+        values = "Total Nacional"
+      )
+    )
+
+
+  surfR_region_monthly <-
+    surfR_region_monthly |>
+    mutate(
+      product = ifelse(
+        product == "arveja gr. seco",
+        yes = "arveja grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol castlla",
+        yes = "frijol castilla",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol gr. seco",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba gr. seco",
+        yes = "haba grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "maíz a. duro",
+        yes = "maíz amarillo duro",
+        no = product
+      ),
+      product = ifelse(
+        product == "algodón",
+        yes = "algodón rama",
+        no = product
+      ),
+      product = ifelse(
+        product == "arroz",
+        yes = "arroz cáscara",
+        no = product
+      ),
+      product = ifelse(
+        product == "arveja grano",
+        yes = "arveja grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba grano",
+        yes = "haba grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "	maíz am duro",
+        yes = "maíz amarillo duro",
+        no = product
+      )
+    )
+
+
+  if (str_detect(file, "Superficies_R_201(4|5).xlsx$")) {
+    surfR_region_monthly <- surfR_region_monthly |>
+      mutate(
+        product = case_when(
+          str_detect(product, "arroz")     ~  "arroz cáscara",
+          str_detect(product, "banano")    ~  "plátano",
+          str_detect(product, "café")      ~  "café",
+          str_detect(product, "banano")    ~  "plátano",
+          str_detect(product, "caña")      ~  "caña de azúcar",
+          str_detect(product, "chocho")    ~  "chocho",
+          str_detect(product, "gar")       ~  "garbanzo",
+          str_detect(product, "caña")      ~  "caña de azúcar",
+          str_detect(product, "algodón")   ~  "algodón rama",
+          str_detect(product, "maíz amilaceo")   ~  "maíz amiláceo",
+          str_detect(product, "maíz amílaceo")   ~  "maíz amiláceo",
+          str_detect(product, "caña de azúcar para azúcar")   ~  "caña de azúcar",
+          str_detect(product, "arveja seca")     ~  "arveja grano seco",
+          str_detect(product, "arveja verde")    ~  "arveja grano verde",
+          str_detect(product, "loctao")          ~  "frijol loctao",
+          str_detect(product, "frijol seco")     ~  "frijol grano seco",
+          str_detect(product, "frijol castill")  ~  "frijol castilla",
+          str_detect(product, "haba seca")       ~  "haba grano seco",
+          str_detect(product, "haba seco")       ~  "haba grano seco",
+          str_detect(product, "haba verde")      ~  "haba grano verde",
+          str_detect(product, "limón sutil")     ~  "limón",
+          str_detect(product, "haba verde")      ~  "haba grano verde",
+          str_detect(product, "algodón rama")    ~  "algodón rama",
+          str_detect(product, "café")            ~  "café",
+          str_detect(product, "cañihua")         ~  "cañihua",
+          str_detect(product, "espárrago")       ~  "espárrago",
+          str_detect(product, "limón")           ~  "limón",
+          str_detect(product, "maíz amiláceo")   ~  "maíz amiláceo",
+          str_detect(product, "maíz choclo")     ~  "maíz choclo",
+          str_detect(product, "piña")            ~  "piña",
+          str_detect(product, "zaran-daja")      ~  "zarandaja",
+          TRUE ~ product
+        )
+      )
+  }
+
+  SurfaceR <- surfR_region_monthly |>
+    arrange(region, product, desc(month)) |>
+    mutate(value_num = ifelse(is.na(value_num), yes = 0, no = value_num))|>
+    pivot_wider(names_from = month, values_from = value_num)
+
+  if (timescale == 1) {
+    SurfaceR <-
+      cbind(SurfaceR[1:3], SurfaceR[4:14] - SurfaceR[5:15], SurfaceR[15]) |>
+      pivot_longer(cols = -c(region, year, product), names_to = "month")
+    SurfaceR  <- SurfaceR[with(SurfaceR, order(region, year, as.numeric(month), product, value)), ]
+  }
+
+  if (timescale == 3) {
+    SurfaceR <-
+      cbind(
+        SurfaceR[1:3],
+        SurfaceR[4] - SurfaceR[7],
+        SurfaceR[7] - SurfaceR[10],
+        SurfaceR[10] - SurfaceR[13],
+        SurfaceR[13]
+      ) |>
+      pivot_longer(cols = -c(region, year, product), names_to = "trim")
+    SurfaceR <- SurfaceR[with(SurfaceR, order(region, year, as.numeric(trim), product, value)), ]
+  }
+
+  if (timescale == 4) {
+    SurfaceR <-
+      cbind(
+        SurfaceR[1:3],
+        SurfaceR[4] - SurfaceR[8],
+        SurfaceR[8] - SurfaceR[12],
+        SurfaceR[12]
+      ) |>
+      pivot_longer(cols = -c(region, year, product), names_to = "quadrim")
+    SurfaceR <- SurfaceR[with(SurfaceR, order(region, year, as.numeric(quadrim), product, value)), ]
+  }
+
+  if (timescale == 6) {
+    SurfaceR <-
+      cbind(
+        SurfaceR[1:3],
+        SurfaceR[4] - SurfaceR[10],
+        SurfaceR[10]
+      ) |>
+      pivot_longer(cols = -c(region, year, product), names_to = "biannual")
+    SurfaceR <- SurfaceR[with(SurfaceR, order(region, year, as.numeric(biannual), product, value)), ]
+  }
+
+  if (timescale == 12) {
+    SurfaceR <-
+      cbind(SurfaceR[1:3], SurfaceR[4]) |>
+      rename(surf_R_annual = "12")
+  }
+
+  SurfaceR
+}# End of import_monthly_regional_values_SR()
+```
+
+#### Regional Prices
+
+```{r}
+#' Import monthly regional agricultural values from the Excel file,
+#' for a given month
+#' 
+#' @param sheet_name name of the Excel sheet
+#' @param file path to the Excel File
+#' @param anneesup 
+import_monthly_regional_values_year_Px <- function(sheet_name,
+                                                   file,
+                                                   anneesup) {
+  # The first two digits of the name: month
+  # the next four: the four digits of the year
+  # last digit: index of the sheet for a given month and year (we will note use it)
+  year  <- str_sub(sheet_name, 3, 6) |> as.numeric()
+  month <- str_sub(sheet_name, 1, 2) |> as.numeric()
+  tmp   <- suppressMessages(
+    read_excel(
+      path = file,
+      sheet = sheet_name,
+      col_types = "text",
+      n_max = 15,
+      col_names = FALSE
+    )
+  )
+
+  # We can use the first occurrence of "Año" to determine the beginning of the table
+  ind_row_year <- str_which(tmp[[4]], regex("año.?", ignore_case = TRUE))
+  if (length(ind_row_year) == 0) {
+    ind_row_year <- str_which(tmp[[3]], regex("año.?", ignore_case = TRUE)) |>
+      first()
+  } else {
+    ind_row_year <- first(ind_row_year)
+  }
+
+  if (sheet_name == "062015") {ind_row_year <- 8}
+
+  # Replacing column 2 into column 3
+  if (y > 4) {
+    tmp[1:ind_row_year+2, 3] <- tmp[1:ind_row_year + 2, 2]
+    tmp[1:ind_row_year +2, 2] <- NA
+  }
+
+  # The first row of the header of the table is contained in the previous line
+  skip_head <- ind_row_year
+
+  # The body of the table
+  prx_region_tmp <-
+    suppressMessages(
+      read_excel(
+        path = file,
+        sheet = sheet_name,
+        col_types = "text", col_names = F
+      )
+    )
+
+  positions <-
+    which(prx_region_tmp[,4] == regex(pattern = "Año", ignore_case = TRUE))
+
+
+  if (str_detect(file, "Prices_2015.xlsx$")) {
+    positions <-
+      which(prx_region_tmp[,3] == regex(pattern = "Año", ignore_case = TRUE))
+  }
+  if (length(positions) == 0) {
+    positions <-
+      which(prx_region_tmp[,3] == regex(pattern = "Año", ignore_case = TRUE))
+  }
+
+  resul <-NULL
+
+  for (i in 1:length(positions)) {
+    prx_region_tmp <-
+      suppressMessages(
+        read_excel(
+          path = file,
+          sheet = sheet_name,
+          col_types = "text",
+          col_names = F,
+          skip = positions[i] - 1,
+          n_max = ifelse(
+            i == length(positions),
+            yes = 1000,
+            no = positions[i + 1] - positions[i]
+          )-1
+        )
+      )
+
+    header_1 <- prx_region_tmp[1:2, ]
+    if (y < 6) {header_1 <- prx_region_tmp[1, ]}
+    header_2 <-
+      header_1 |>
+      summarise(
+        across(
+          .cols = everything(),
+          .fns = ~format_header(.x)
+        )
+      )
+    if (str_detect(header_2[1,2], regex("Gobierno Regional", ignore_case = TRUE)) == T){
+      header_2[2] <-  "departamento"
+    }
+
+    header_2[3] <- header_2[2]
+    header_2[2] <- ""
+
+    if (str_detect(file, "Prices_2015.xlsx$")) {
+      header_2 <-
+        header_1 |>
+        summarise(
+          across(
+            .cols = everything(),
+            .fns = ~format_header(.x)
+          )
+        )
+    }
+
+    colnames(prx_region_tmp) <- as.character(header_2)
+
+    if (y < 6) {
+      if (colnames(prx_region_tmp)[2] == "") {
+        colnames(prx_region_tmp)[2] <- "departamento"
+        colnames(prx_region_tmp)[3] <- "año"
+      }
+      prx_region_tmp <- prx_region_tmp[-1, ]
+    } else {
+      if (colnames(prx_region_tmp)[3] == "") {
+        colnames(prx_region_tmp)[2] <- "departamento"
+      }
+      prx_region_tmp <- prx_region_tmp[-c(1:2), ]
+    }
+
+    cell <- ifelse(str_detect(file, "Prices_2015.xlsx$"), yes = 2, no = 3)
+
+    if (!is.na(prx_region_tmp[1, 2]) &
+        str_detect(prx_region_tmp[1, 2], regex("Promedio Nacional", ignore_case = TRUE)
+        ) == T){
+      prx_region_tmp[1, cell]  <- "PROMEDIO NACIONAL"
+    }
+    if (!is.na(prx_region_tmp[1, 2]) &
+        str_detect(prx_region_tmp[1, 2], regex("Gobierno Regional", ignore_case = TRUE)) == T) {
+      prx_region_tmp[1, cell]  <- "PROMEDIO NACIONAL"
+    }
+
+    if (sheet_name == "072007") {prx_region_tmp[, 3] <- prx_region_tmp[2]}
+    # Removing columns with no name
+    ind <- !is.na(colnames(prx_region_tmp)) & (colnames(prx_region_tmp) != "")
+    prx_region_tmp <-
+      prx_region_tmp |> dplyr::select(!!!colnames(prx_region_tmp)[ind]) |>
+      {\(x) x[, -1]}()
+
+    # Removing rows with all NAs
+    prx_region_tmp <-
+      prx_region_tmp |>
+      filter_all(any_vars(!is.na(.)))
+
+    # Removing rows where "Continúa" is found
+    prx_region_tmp <-
+      prx_region_tmp |>
+      filter_all(
+        any_vars(
+          !str_detect(., regex(pattern = "Continúa", ignore_case = TRUE))
+        )
+      )
+
+    # Removing the first colomn if row index
+    if (str_detect(colnames(prx_region_tmp)[1], "[aeiou]") == FALSE) {
+      prx_region_tmp <- prx_region_tmp[-1]
+    }
+    # The name of the first column differs accross sheets (departemento or region)
+    name_first_col <- colnames(prx_region_tmp)[1]
+    if (! name_first_col %in% c("departamento", "región")) {
+      warning(str_c("Issue with sheet: ", sheet_name))
+      return(NULL)
+    }
+
+    prx_region_tmp <-
+      prx_region_tmp |>
+      rename(region := !!name_first_col)
+
+    prx_region_tmp <-
+      prx_region_tmp |> rename(year = año)
+
+    if (sheet_name == "062015") {
+      p <- str_which(prx_region_tmp$region,"Cajamarca")
+      prx_region_tmp$region[p] <- "Cajamarca_R"
+    } else {
+      p <- str_which(prx_region_tmp$region,"Cajamarca") |>
+        first()
+      prx_region_tmp$region[p] <- "Cajamarca_R"
+    }
+
+    # The production of each product is given in two rows, but the product name is not repeated
+    prx_region_tmp <-
+      prx_region_tmp |>
+      fill(region, .direction = "down")
+
+    # Removing sub-regional data
+    prx_region_tmp <-
+      prx_region_tmp |>
+      filter(
+        ! region %in% c("Cajamarca", "Chota", "Jaén", "Abancay","Andahuaylas")
+      ) |>
+      filter(! year %in% c(NA))
+
+    resul_current <-
+      prx_region_tmp |>
+      pivot_longer(cols = -c(region, year), names_to = "product")
+
+    resul <- resul |>
+      bind_rows(resul_current)
+
+    if(sheet_name == "062015"){
+      resul <- resul |>
+        filter(year %in% c(2014, 2015))
+    }
+  }
+
+  # Correction for product names
+  resul <-
+    resul |>
+    mutate(
+      product = ifelse(
+        product == "arveja gr. seco",
+        yes = "arveja grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol grano seco**",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol palo",
+        yes = "frijol de palo",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol castlla",
+        yes = "frijol castilla",
+        no = product
+      ),
+      product = ifelse(
+        product == "lentaja",
+        yes = "lenteja",
+        no = product
+      ),
+      product = ifelse(
+        product == "frijol gr. seco",
+        yes = "frijol grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba gr. seco",
+        yes = "haba grano seco",
+        no = product
+      ),
+      product = ifelse(
+        product == "maíz a. duro",
+        yes = "maíz amarillo duro",
+        no = product
+      ),
+      product = ifelse(
+        product == "arveja gr. verde",
+        yes = "arveja grano verde",
+        no = product
+      ),
+      product = ifelse(
+        product == "haba gr. verde",
+        yes = "haba grano verde",
+        no = product
+      ),
+      product = ifelse(
+        product == "espá-rrago",
+        yes = "espárrago",
+        no = product
+      ),
+      product = ifelse(
+        product == "maíz duro",
+        yes = "maíz amarillo duro",
+        no = product
+      ),
+    )
+
+  if (anneesup == 1) {
+    resul <-
+      resul |>
+      filter(year == max(year))
+  } else {
+    # Keeping only the last year available
+    resul <-
+      resul |>
+      filter(year == min(year))
+  }
+
+  resul |>
+    mutate(month = month) |>
+    dplyr::select(region, year, month, product, value)
+}# End of import_monthly_regional_values_year_Px ()
+```
+
+```{r}
+#' Import monthly regional agricultural values from the Excel file,
+#' for all the months of the file.
+#'
+#' @param file path to the Excel File
+#' @param anneesup
+#' @param timescale
+import_monthly_regional_values_Px <- function(file,
+                                              anneesup,
+                                              timescale) {
+  sheet_names <- excel_sheets(file)
+  prx_region_monthly <- map(
+    sheet_names,
+    import_monthly_regional_values_year_Px,
+    file = file,anneesup= anneesup
+  ) |>
+    list_rbind()
+  # Cleaning years and changing type of values: from str to num
+  prx_region_monthly <-
+    prx_region_monthly |>
+    mutate(year = str_remove(year, "p/?") |> as.numeric()) |>
+    mutate(
+      value_num = str_remove_all(value, pattern = " ") |>
+        str_replace_all(pattern = ",", replacement = ".") |>
+        as.numeric()
+    )
+
+  # Values in 2015 are expressed in thousands of tonnes
+  # These need to be expressed in tonnes
+  if (str_detect(file, "Prices_2015.xlsx$")) {
+    prx_region_monthly <-
+      prx_region_monthly |>
+      mutate(
+        value_num = value_num,
+        value_num = ifelse(month > 4,
+          yes = value_num / 10^3,
+          no = value_num
+        )
+      )
+  }
+
+
+  # Removing the `value` columns to keep only the column with numerical values
+  prx_region_monthly <-
+    prx_region_monthly |>
+    dplyr::select(-value)
+
+
+  # Cleaning region names
+  prx_region_monthly$region |> unique() |> sort()
+  prx_region_monthly <-
+    prx_region_monthly |>
+    mutate(region = replace(region, region=="Apurimac", "Apurímac")) |>
+    mutate(region = replace(region, region=="Cajamarca_R", "Cajamarca")) |>
+    mutate(
+      region = replace(
+        x = region,
+        list = region %in% c("Nacional", "Promedio nacional", "PROMEDIO NACIONAL"),
+        values = "Total Nacional"
+      )
+    )
+
+  # Cleaning product names
+  prx_region_monthly <- prx_region_monthly
+  prx_region_monthly <- prx_region_monthly |>
+    # Replace extra spacing with only one space
+    mutate(product = str_replace_all(product, "[[:blank:]]{2,}", " "))
+
+  prx_region_monthly <-
+    prx_region_monthly |>
+    mutate(
+      product = ifelse(
+        product == "arveja gr. seco", yes = "arveja grano seco", no = product
+      ),
+      product = ifelse(
+        product == "frijol castlla", yes = "frijol castilla", no = product
+      ),
+      product = ifelse(
+        product == "frijol gr. seco", yes = "frijol grano seco", no = product
+      ),
+      product = ifelse(
+        product == "haba gr. seco", yes = "haba grano seco", no = product
+      ),
+      product = ifelse(
+        product == "maíz a. duro", yes = "maíz amarillo duro", no = product
+      )
+    )
+
+
+  if (str_detect(file, "Prices_201(4|5).xlsx$")) {
+    prx_region_monthly <- prx_region_monthly |>
+      mutate(
+        product = case_when(
+          str_detect(product, "arroz")           ~  "arroz cáscara",
+          str_detect(product, "banano")          ~  "plátano",
+          str_detect(product, "café")            ~  "café",
+          str_detect(product, "banano")          ~  "plátano",
+          str_detect(product, "caña")            ~  "caña de azúcar",
+          str_detect(product, "chocho")          ~  "chocho",
+          str_detect(product, "gar")             ~  "garbanzo",
+          str_detect(product, "caña")            ~  "caña de azúcar",
+          str_detect(product, "algodón")         ~  "algodón rama",
+          str_detect(product, "maíz amilaceo")   ~  "maíz amiláceo",
+          str_detect(product, "maíz amílaceo")   ~  "maíz amiláceo",
+          str_detect(product, "caña de azúcar para azúcar")   ~  "caña de azúcar",
+          str_detect(product, "arveja seca")     ~  "arveja grano seco",
+          str_detect(product, "arveja verde")    ~  "arveja grano verde",
+          str_detect(product, "loctao")          ~  "frijol loctao",
+          str_detect(product, "frijol seco")     ~  "frijol grano seco",
+          str_detect(product, "frijol castill")  ~  "frijol castilla",
+          str_detect(product, "haba seca")       ~  "haba grano seco",
+          str_detect(product, "haba seco")       ~  "haba grano seco",
+          str_detect(product, "haba verde")      ~  "haba grano verde",
+          str_detect(product, "limón sutil")     ~  "limón",
+          str_detect(product, "haba verde")      ~  "haba grano verde",
+          str_detect(product, "algodón rama")    ~  "algodón rama",
+          str_detect(product, "café")            ~  "café",
+          str_detect(product, "cañihua")         ~  "cañihua",
+          str_detect(product, "espárrago")       ~  "espárrago",
+          str_detect(product, "limón")           ~  "limón",
+          str_detect(product, "maíz amiláceo")   ~  "maíz amiláceo",
+          str_detect(product, "maíz choclo")     ~  "maíz choclo",
+          str_detect(product, "piña")            ~  "piña",
+          str_detect(product, "zaran-daja")      ~  "zarandaja",
+          TRUE ~ product
+        )
+      )
+  }
+
+  prx_region_monthly <-
+    prx_region_monthly |>
+    mutate(value_num = ifelse(is.na(value_num), yes = 0, no = value_num))|>
+    mutate(date = str_c(year, month, sep = "-")) |>
+    unique()
+
+  prx_region_monthly
+}# End of import_monthly_regional_values_Px ()
+```
+
+
+## Download the Data
+
+Once the functions to downloaded the data are defined, we can use them.
+
+```{r, eval=FALSE}
+# Production 
+data_P_TOTAL <- NULL
+data_P_TOTAL_A <- NULL
+# Planted surface
+data_S_TOTAL <- NULL
+data_S_TOTAL_A <- NULL
+# Harvested surface 
+data_SR_TOTAL <- NULL
+data_SR_TOTAL_A <- NULL
+# Prices
+data_Px_TOTAL <- NULL
+```
+
+
+```{r, eval=FALSE}
+download_again <- FALSE
+if (download_again) {
+  for (y in c(2:14)) {
+    year <-  ifelse( y < 10, paste("200", y, sep=""), paste("20", y, sep=""))
+    print(year)
+    # Code for years in PDF files
+    if (y %in% c(2,3,4)) {
+      for (m in 12:1) {
+        print(m)
+        #Months not available in PDF Files
+        if ( m == 3 & y == 3) {next}
+        if ( m == 3 & y == 2) {next}
+        if ( m == 6 & y == 2) {next}
+        if ( m == 9 & y == 2) {next}
+        if ( m == 12 & y == 2) {next}
+        
+        # URL to download the pdf files
+        link <- str_c(
+          "https://www.midagri.gob.pe/portal/download/pdf",
+          "/herramientas/boletines/boletineselectronicos/",
+          "estadisticaagrariamensual/", year, "/EAM",
+          str_sub(year, 3, 4),
+          ifelse(m < 10, paste("0", m, sep = ""), m),
+          ".pdf"
+        )
+        
+        # # Production - Pages 44,45, 46 and 47 of the PDF Files
+        name <- str_c(
+          "../data/raw/minagri/Production/Production_", year, ".xlsx"
+        )
+        for (i in 0:1) {
+          page1 <- extract_pdf_data(
+            annee = y,
+            mois = m,
+            adresse = link,
+            page = 44 + 2 * i, 
+            Cell1 = "Departamento"
+          )
+          page2 <- extract_pdf_data(
+            annee = y, 
+            mois = m, 
+            adresse = link,
+            page = 45 + 2 * i,
+            Cell1 = "Departamento"
+          )
+          Tableau <- rbind(page1, page2)
+          
+          write.xlsx(
+            Tableau, 
+            name, 
+            sheetName = str_c(
+              ifelse(m < 10, paste("0",m, sep=""), m),
+              year,
+              i + 1
+            ),
+            append = TRUE,
+            showNA = FALSE
+          )
+          print(paste("Production", i, "ok "))
+        }
+        # Planted surface - Pages 30, 31, 32, 33 of the PDF Files
+        name <- str_c(
+          "../data/raw/minagri/Surface/Superficies_", year, ".xlsx"
+        )
+        for (i in 0:1) {
+          page1 <- extract_pdf_data(
+            annee = y,
+            mois = m,
+            adresse = link,
+            page = 30 + 2 * i,
+            Cell1 = "Departamento"
+          )
+          page2 <- extract_pdf_data(
+            annee = y, 
+            mois = m,
+            adresse = link,
+            page = 31 + 2 * i,
+            Cell1 = "Departamento"
+          )
+          Tableau <-  rbind(page1, page2)
+          write.xlsx(
+            Tableau,
+            name,
+            sheetName = str_c(
+              ifelse(m < 10, paste("0", m, sep = ""), m), 
+              year,
+              i + 1
+            ), 
+            append = TRUE, 
+            showNA = FALSE
+          )
+          print(paste("Surface", i, "ok "))
+        }
+        
+        # Harvested surface - Pages 38,45, 46 and 47 of the PDF Files
+        name <- str_c(
+          "../data/raw/minagri/Surface_R/Superficies_R_", year, ".xlsx"
+        )
+        for (i in 0:1) {
+          page1 <- extract_pdf_data(
+            annee = y,
+            mois = m, 
+            adresse = link, 
+            page = 38 + 2 * i,
+            Cell1 = "Departamento"
+          )
+          page2 <- extract_pdf_data(
+            annee = y, 
+            mois = m, 
+            adresse = link, 
+            page = 39 + 2 * i, 
+            Cell1 = "Departamento"
+          )
+          Tableau <-  rbind(page1, page2)
+          write.xlsx(
+            Tableau,
+            name,
+            sheetName = str_c(
+              ifelse(m < 10, paste("0", m, sep = ""), m),
+              year,
+              i + 1
+            ), 
+            append = TRUE,
+            showNA = FALSE
+          )
+          print(paste("Surface R", i, "ok "))
+        }
+        
+        # Prices - Pages 109,110, 111, 112, 113, 114 or 115 depending on the PDF Files
+        name <- str_c(
+          "../data/raw/minagri/Prices/Prices_", year, ".xlsx"
+        )
+        for (i in 0:1) {
+          if (y < 3 & m < 8) {
+            page2002 <- case_when(m == 7 ~ 4, TRUE ~ 3)
+          } else {
+            page2002 <- 0
+          }
+          page1 <- extract_pdf_data(
+            annee = y,
+            mois = m,
+            adresse = link, 
+            page = 112 +2 * i - page2002, 
+            Cell1 = "Departamento"
+          )
+          page2 <- extract_pdf_data(
+            annee = y,
+            mois = m,
+            adresse = link, 
+            page = 113 + 2 * i - page2002,
+            Cell1 = "Departamento"
+          )
+          
+          if((ncol(page1) != ncol(page2)) & 
+             any(str_detect(page2[,ncol(page2)], "Plátano"))) {
+            page2 <- page2[,-ncol(page2)]
+          }
+          Tableau <-  rbind(page1, page2)
+          write.xlsx(
+            Tableau, 
+            name,
+            sheetName = str_c(
+              ifelse(m < 10, paste("0", m, sep = ""), m),
+              year,
+              i + 1
+            ),
+            append = TRUE,
+            showNA = FALSE
+          )
+        }
+      }
+    } else {
+      # Code for years in Excel files - 2006 and above
+      # Remark : 2005 data are extracted manually
+      if(y == 5) {
+        next
+      } else {
+        # Downloading and extracting the excel sheets of interest
+        download.data(y, out_folder = "../data/raw/minagri/")
+      }
+    }
+  }
+}
+```
+
+
+## Import Data in R {#sec-data-agriculture-import}
+
+
+We loop over the years to import the downloaded data.
+```{r, eval=FALSE}
+for (y in 2:16) {
+  if (y == 16) {
+    # Extracting the data of year y (only for the last year)
+    # last digits of the year
+    fn_digits_year <- ifelse(y < 10, str_c("0", y - 1), y - 1)
+    
+    data_P  <- import_monthly_regional_values_P(
+      file = str_c(
+        "../data/raw/minagri/Production/Production_20", 
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 1,
+      timescale = 1
+    )
+    data_Px <- import_monthly_regional_values_Px(
+      file = str_c(
+        "../data/raw/minagri/Prices/Prices_20", 
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 1,
+      timescale = 1
+    )
+    data_S  <- import_monthly_regional_values_S(
+      file = str_c(
+        "../data/raw/minagri/Surface/Superficies_20", 
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 1, timescale = 1
+    )
+    data_SR <- import_monthly_regional_values_SR(
+      file = str_c(
+        "../data/raw/minagri/Surface_R/Superficies_R_20", 
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 1, 
+      timescale = 1
+    )
+    
+    data_P_annual  <- import_monthly_regional_values_P(
+      file = str_c(
+        "../data/raw/minagri/Production/Production_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 1,
+      timescale = 12
+    )
+    data_S_annual  <- import_monthly_regional_values_S(
+      file = str_c(
+        "../data/raw/minagri/Surface/Superficies_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 1,
+      timescale = 12
+    )
+    data_SR_annual <- import_monthly_regional_values_SR(
+      file = str_c(
+        "../data/raw/minagri/Surface_R/Superficies_R_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 1,
+      timescale = 12
+    )
+  } else {
+    # Extracting the data of year y-1
+    fn_digits_year <- str_pad(y, width = 2, side = "left", pad = 0)
+    data_P  <- import_monthly_regional_values_P(
+      file = str_c(
+        "../data/raw/minagri/Production/Production_20", 
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 0,
+      timescale = 1
+    )
+    data_S  <- import_monthly_regional_values_S(
+      file = str_c(
+        "../data/raw/minagri/Surface/Superficies_20", 
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 0,
+      timescale = 1
+    )
+    data_SR <- import_monthly_regional_values_SR(
+      file = str_c(
+        "../data/raw/minagri/Surface_R/Superficies_R_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 0, 
+      timescale = 1
+    )
+    data_Px <- import_monthly_regional_values_Px(
+      file = str_c(
+        "../data/raw/minagri/Prices/Prices_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 0,
+      timescale = 1
+    )
+    
+    data_P_TRIM <- import_monthly_regional_values_P(
+      file = str_c(
+        "../data/raw/minagri/Production/Production_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 0,
+      timescale = 4
+    )
+    data_P_annual  <- import_monthly_regional_values_P(
+      file = str_c(
+        "../data/raw/minagri/Production/Production_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 0,
+      timescale = 12
+    )
+    data_S_annual  <- import_monthly_regional_values_S(
+      file = str_c(
+        "../data/raw/minagri/Surface/Superficies_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 0,
+      timescale = 12
+    )
+    data_SR_annual <- import_monthly_regional_values_SR(
+      file = str_c(
+        "../data/raw/minagri/Surface_R/Superficies_R_20",
+        fn_digits_year, ".xlsx"
+      ),
+      anneesup = 0,
+      timescale = 12
+    )
+  }
+  
+  print(str_c(y," ok"))
+  
+  data_P <-
+    data_P |>
+    mutate(date = lubridate::ymd(str_c(year, month, "01", sep = "-")))
+  colnames(data_P) <- c(
+    "region", "year", "product", "month", "Value_prod", "date"
+  )
+
+  data_S <-
+    data_S |>
+    mutate(date = lubridate::ymd(str_c(year, month, "01", sep = "-")))
+  colnames(data_S) <- c(
+    "region", "campaign", "month", "product", "year","Value_surf", "date"
+  )
+  
+  data_SR <-
+    data_SR |>
+    mutate(date = lubridate::ymd(str_c(year, month, "01", sep = "-")))
+  colnames(data_SR) <- c(
+    "region", "year", "product", "month", "Value_surfR", "date"
+  )
+  
+  data_Px <-
+    data_Px |>
+    mutate(date = lubridate::ymd(str_c(year, month, "01", sep = "-")))
+  colnames(data_Px) <- c(
+    "region", "year", "month", "product", "Value_prices", "date"
+  )
+  
+  # # Adding the new year to the global mensual files
+  y_ix <- y - 1 
+  data_P_TOTAL[[y_ix]]  <- data_P
+  data_S_TOTAL[[y_ix]]  <- data_S
+  data_SR_TOTAL[[y_ix]] <- data_SR
+  data_Px_TOTAL[[y_ix]] <- data_Px
+  
+  rm(data_P, data_S, data_SR, data_Px)
+} # End of Loop 1
+```
+
+All the year-elements in a single tibble:
+```{r, eval=FALSE}
+data_P_TOTAL    <- list_rbind(data_P_TOTAL)
+data_S_TOTAL    <- list_rbind(data_S_TOTAL)
+data_SR_TOTAL   <- list_rbind(data_SR_TOTAL)
+data_Px_TOTAL   <- list_rbind(data_Px_TOTAL)
+```
+
+
+
+### Campaign Data
+
+We add the agricultural campaign data to the Planted surfaces data.
+```{r, eval=FALSE}
+data_S_TOTAL <- data_S_TOTAL |> 
+  mutate(
+    campaign = as.numeric(str_sub(campaign, 3, 4)),
+    campaign_plain = str_c(campaign,"/",campaign + 1)) |> 
+  unique() |> 
+  # Retrieving the campaign month (starting in August)
+  mutate(
+    month_campaign = case_when(
+      month == 1  ~ 6,
+      month == 2  ~ 7,
+      month == 3  ~ 8,
+      month == 4  ~ 9,
+      month == 5  ~ 10,
+      month == 6  ~ 11,
+      month == 7  ~ 12,
+      month == 8  ~ 1,
+      month == 9  ~ 2,
+      month == 10 ~ 3,
+      month == 11 ~ 4,
+      month == 12 ~ 5
+    )
+  ) |> 
+  mutate(
+    product = ifelse(
+      product == "maíz duro",
+      yes =  "maíz amarillo duro",
+      no = product
+    )
+  ) |> 
+  group_by(region, product) |> 
+  # Harmonizing the cumulative values of surface (if the lead and the lag are equals)
+  mutate(
+    Value_surf = ifelse(
+      lead(Value_surf) == lag(Value_surf, default = 0) & 
+        Value_surf < lag(Value_surf, default = 0),
+      yes = lag(Value_surf),
+      no = Value_surf
+    )
+  ) |> 
+  filter(! region == "Total Nacional")
+
+```
+
+Then, we check whether there are some errors:
+```{r, eval=FALSE}
+# Checking for errors  
+dup_surf <- data_S_TOTAL |>
+  filter(! product == "total") |> 
+  filter(! product == "TOTAL") |> 
+  group_by(region, date, product) |> 
+  mutate(n = n()) |> 
+  filter(n > 1) |> 
+  select(date) |> 
+  unique()
+```
+
+### Growth Duration
+
+Let us determine the growth duration and the corresponding lags from the agricultural calendars.
+
+#### Calendar {#sec-agricultural-calendar}
+
+The Excel files with the agricultural calendar for specific crops are in the `data` folder, within the `Calendario agricola` sub-folder. Note: soya seems to be missing.
+
+```{r}
+N <- list.files(
+  path = "../data/raw/Calendario agricola/", 
+  pattern = "xls$",
+  full.names = TRUE
+)
+```
+
+Let us define a small function that imports a specific calendar.
+```{r}
+#' Import calendar from the Excel files
+#' 
+#' @param x full path to a Calendar (Excel file)
+import_calendar <- function(x) {
+  region <- str_extract(x, "//cal_(.*)\\.xls") |> 
+    str_remove("//cal_") |> 
+    str_remove("\\.xls")
+  
+  df_cal_1 <- read_excel(x)
+  
+  row_prod_mes <- str_which(
+    df_cal_1$`CALENDARIO AGRICOLA NACIONAL`, "Producto/Mes"
+  )
+  ind_first <- first(row_prod_mes)
+  ind_last <- last(row_prod_mes)
+  
+  df_cal_planting <- read_excel(
+    x, 
+    skip = ind_first, 
+    n_max = ind_last-ind_first - 3
+  )
+  df_cal_planting <- 
+    df_cal_planting |> 
+    pivot_longer(
+      cols = -`Producto/Mes`,
+      names_to = "month_spanish",
+      values_to = "pct"
+    ) |> 
+    mutate(region = region, period = "planting")
+  
+  df_cal_harvest <- read_excel(x, skip = ind_last)
+  df_cal_harvest <- 
+    df_cal_harvest |> 
+    filter(!is.na(`Producto/Mes`)) |> 
+    mutate(across(-`Producto/Mes`, ~as.numeric(.))) |> 
+    pivot_longer(
+      cols = -`Producto/Mes`,
+      names_to = "month_spanish",
+      values_to = "pct"
+    ) |> 
+    mutate(region = region, period = "harvest")
+  
+  df_cal_planting |> 
+    bind_rows(df_cal_harvest)
+}
+```
+
+
+All the calendars can then be imported:
+```{r, eval=FALSE}
+calendar <- map(N, import_calendar) |> 
+  list_rbind()
+```
+
+The dates are written using Spanish month names. Let us create a table with the corresponding month numbers.
+```{r, eval=FALSE}
+calendar <- 
+  calendar |> 
+  filter(month_spanish != "...14")
+
+spanish_months <- 
+  tibble(
+    month_spanish = c(
+      "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+      "Jul", "Ago", "Set", "Oct", "Nov", "Dic"
+    ),
+    month = 1:12
+  )
+```
+
+The corresponding month numbers can then be associated with the data in the calendars.
+```{r, eval=FALSE}
+calendar <- 
+  calendar |> 
+  left_join(spanish_months) |> 
+  select(-month_spanish)
+```
+
+Some renaming for the regions:
+```{r, eval=FALSE}
+calendar <- calendar |> 
+  mutate(
+    region = ifelse(region == "lalibertad", "la libertad", region),
+    region = ifelse(region == "madrededios", "madre de dios", region),
+    region = ifelse(region == "sanmartin", "san martin", region)
+  ) |> 
+  mutate(region = str_to_upper(region))
+```
+
+When no data is filled in the Excel file, we assume it corresponds to no production.
+```{r, eval=FALSE}
+calendar <- 
+  calendar |> 
+  rename(product = `Producto/Mes`) |> 
+  mutate(pct = ifelse(is.na(pct), 0, pct))
+```
+
+The calendar for planting dates:
+```{r, eval=FALSE}
+calendar1 <- calendar |> 
+  filter(period == "planting") |> 
+  group_by(region, product) |> 
+  mutate(val_max = max(pct)) |> 
+  ungroup() |> 
+  slice(which(pct == val_max)) |> 
+  select(-val_max) 
+```
+
+
+For the harvest season:
+```{r, eval=FALSE}
+calendar2 <- calendar |> 
+  filter(period == "harvest") |> 
+  group_by(region, product) |> 
+  mutate(val_max = max(pct)) |> 
+  ungroup() |> 
+  slice(which(pct == val_max)) |> 
+  slice(-2) |> 
+  slice(-163) |> 
+  select(-val_max) |> 
+  full_join(calendar1, by = c("region","product")) |> 
+  mutate(
+    growth_duration = month.x - month.y,
+    growth_duration = ifelse(
+      growth_duration < 0, 
+      yes = month.x + 13 - month.y, 
+      no = growth_duration
+    ),
+    growth_duration = ifelse(growth_duration == 0,12, growth_duration)
+  ) |> 
+  slice(-which(is.na(growth_duration))) |> 
+  mutate(
+    region = toupper(iconv(region, to = "ASCII//TRANSLIT")),
+    product = toupper(product)
+  )
+```
+
+
+```{r, eval=FALSE}
+calendar3 <- calendar |> 
+  filter(period == "harvest") |> 
+  mutate(month =   str_c("month", month)) |> 
+  pivot_wider(names_from = month, values_from = pct) |> 
+  mutate(
+    cum_sum1  = month1, 
+    cum_sum2  = month2 + cum_sum1, 
+    cum_sum3  = month3 + cum_sum2, 
+    cum_sum4  = month4 + cum_sum3, 
+    cum_sum5  = month5 + cum_sum4, 
+    cum_sum6  = month6 + cum_sum5, 
+    cum_sum7  = month7 + cum_sum6, 
+    cum_sum8  = month8 + cum_sum7, 
+    cum_sum9  = month9 + cum_sum8, 
+    cum_sum10 = month10 + cum_sum9, 
+    cum_sum11 = month11 + cum_sum10, 
+    cum_sum12 = month12 + cum_sum11) |> 
+  select(
+    product, region,
+    cum_sum1, cum_sum2, cum_sum3, cum_sum4,cum_sum5, cum_sum6,
+    cum_sum7, cum_sum8, cum_sum9, cum_sum10, cum_sum11, cum_sum12
+  ) |> 
+  pivot_longer(
+    cols = c(
+      cum_sum1, cum_sum2, cum_sum3, cum_sum4,cum_sum5, cum_sum6,
+      cum_sum7, cum_sum8, cum_sum9, cum_sum10, cum_sum11, cum_sum12
+    ), 
+    names_to = "month"
+  ) |> 
+  rename(perc_cum_harv = value) |> 
+  mutate(
+    month = case_when(
+      month == "cum_sum1"  ~ 1, 
+      month == "cum_sum2"  ~ 2, 
+      month == "cum_sum3"  ~ 3, 
+      month == "cum_sum4"  ~ 4, 
+      month == "cum_sum5"  ~ 5, 
+      month == "cum_sum6"  ~ 6, 
+      month == "cum_sum7"  ~ 7, 
+      month == "cum_sum8"  ~ 8, 
+      month == "cum_sum9"  ~ 9, 
+      month == "cum_sum10" ~ 10, 
+      month == "cum_sum11" ~ 11, 
+      month == "cum_sum12" ~ 12, 
+    )
+  )
+```
+
+The planting season:
+```{r, eval=FALSE}
+calendar4 <- calendar |> 
+  filter(period == "planting") |> 
+  mutate(month =   str_c("month", month)) |> 
+  pivot_wider(names_from = month, values_from = pct) |> 
+  mutate(
+    cum_sum1  = month8, 
+    cum_sum2  = month9 + cum_sum1, 
+    cum_sum3  = month10 + cum_sum2, 
+    cum_sum4  = month11 + cum_sum3, 
+    cum_sum5  = month12 + cum_sum4, 
+    cum_sum6  = month1 + cum_sum5, 
+    cum_sum7  = month2 + cum_sum6, 
+    cum_sum8  = month3 + cum_sum7, 
+    cum_sum9  = month4 + cum_sum8, 
+    cum_sum10 = month5 + cum_sum9, 
+    cum_sum11 = month6 + cum_sum10, 
+    cum_sum12 = month7 + cum_sum11
+  ) |> 
+  select(
+    product, region, 
+    cum_sum1, cum_sum2, cum_sum3, cum_sum4,cum_sum5, cum_sum6, 
+    cum_sum7, cum_sum8, cum_sum9, cum_sum10, cum_sum11, cum_sum12
+  ) |> 
+  pivot_longer(
+    cols = c(
+      cum_sum1, cum_sum2, cum_sum3, cum_sum4,cum_sum5, cum_sum6, 
+      cum_sum7, cum_sum8, cum_sum9, cum_sum10, cum_sum11, cum_sum12
+    ), names_to = "month") |> 
+  rename(perc_cum_plan = value) |> 
+  mutate(
+    month = case_when(
+      month == "cum_sum1"  ~ 8, 
+      month == "cum_sum2"  ~ 9, 
+      month == "cum_sum3"  ~ 10, 
+      month == "cum_sum4"  ~ 11, 
+      month == "cum_sum5"  ~ 12, 
+      month == "cum_sum6"  ~ 1, 
+      month == "cum_sum7"  ~ 2, 
+      month == "cum_sum8"  ~ 3, 
+      month == "cum_sum9"  ~ 4, 
+      month == "cum_sum10" ~ 5, 
+      month == "cum_sum11" ~ 6, 
+      month == "cum_sum12" ~ 7, 
+    )
+  )
+```
+
+We save those calendars
+```{r, eval=FALSE}
+save(calendar, file = "../data/output/Calendario agricola/calendar.rda")
+save(calendar2, file = "../data/output/Calendario agricola/calendar2.rda")
+save(calendar3, file = "../data/output/Calendario agricola/calendar3.rda")
+save(calendar4, file = "../data/output/Calendario agricola/calendar4.rda")
+```
+
+```{r, echo=FALSE}
+load("../data/output/Calendario agricola/calendar2.rda")
+```
+
+
+```{r}
+calendar2 <- calendar2 |> 
+  mutate(
+    region = str_replace_all(region, "á", "a"),
+    region = str_replace_all(region, "í", "i"),
+    region = str_replace_all(region, "é", "e"),
+    region = str_replace_all(region, "ó", "o"),
+    region = str_replace_all(region, "ú", "u"),
+    region = str_replace_all(region, "ñ", "n")
+  ) |> 
+  mutate(
+    region = toupper(region), 
+    product = toupper(product),
+    product = ifelse(str_detect(product, "ARROZ"), "ARROZ CÁSCARA", product)
+  )
+calendar2
+```
+
+
+```{r, eval=FALSE}
+data_S_TOTAL <- data_S_TOTAL |>
+  group_by(region, product, campaign) |>
+  arrange(region, product, campaign, month_campaign) |> 
+  mutate(
+    surf_m = case_when(
+      month == "8" ~ Value_surf,
+      month != "8" ~ Value_surf - lag(Value_surf))
+  ) |>
+  ungroup() |>  
+  group_by(region, product) |>
+  mutate(id = row_number()) |> 
+  ungroup() |> 
+  mutate(
+    region = str_replace_all(region, "á", "a"),
+    region = str_replace_all(region, "í", "i"),
+    region = str_replace_all(region, "é", "e"),
+    region = str_replace_all(region, "ó", "o"),
+    region = str_replace_all(region, "ú", "u"),
+    region = str_replace_all(region, "ñ", "n")
+  ) |> 
+  mutate(
+    region = toupper(iconv(region, to = "ASCII//TRANSLIT")),
+    product = toupper(product)
+  ) |>
+  left_join(calendar2, by = c("region","product"))
+```
+
+Let us add a variable with the lagged surface:
+```{r, eval=FALSE}
+data_S_TOTAL <- 
+  data_S_TOTAL |> 
+  arrange(region, product, id) |> 
+  group_by(region, product) |>
+  mutate(
+    surf_lag_calend = case_when(
+      growth_duration == 1  & !is.na(lag(surf_m, 1))  ~ lag(surf_m, 1),
+      growth_duration == 2  & !is.na(lag(surf_m, 2))  ~ lag(surf_m, 2),
+      growth_duration == 3  & !is.na(lag(surf_m, 3))  ~ lag(surf_m, 3),
+      growth_duration == 4  & !is.na(lag(surf_m, 4))  ~ lag(surf_m, 4),
+      growth_duration == 5  & !is.na(lag(surf_m, 5))  ~ lag(surf_m, 5),
+      growth_duration == 6  & !is.na(lag(surf_m, 6))  ~ lag(surf_m, 6),
+      growth_duration == 7  & !is.na(lag(surf_m, 7))  ~ lag(surf_m, 7),
+      growth_duration == 8  & !is.na(lag(surf_m, 8))  ~ lag(surf_m, 8),
+      growth_duration == 9  & !is.na(lag(surf_m, 9))  ~ lag(surf_m, 9),
+      growth_duration == 10 & !is.na(lag(surf_m, 10)) ~ lag(surf_m, 10),
+      growth_duration == 11 & !is.na(lag(surf_m, 11)) ~ lag(surf_m, 11),
+      growth_duration == 12 & !is.na(lag(surf_m, 12)) ~ lag(surf_m, 12),
+      TRUE ~ NA
+    )
+  )
+```
+
+Harmonizing the data:
+```{r, eval=FALSE}
+data_S_TOTAL <- data_S_TOTAL |>  
+  mutate(
+    surf_lag_calend = ifelse(id <= growth_duration, NA, surf_lag_calend)
+  ) |> 
+  filter(! product %in% c("TOTAL", "total")) |> 
+  rename(
+    "gr_duration_calend" = "growth_duration", 
+    "month_plan_calend" = "month.y", 
+    "month_harv_calend" = "month.x"
+  ) |> 
+  select(- period.x, - pct.x, -pct.y, -period.y)
+
+rm(calendar2)
+```
+
+### Saving the raw data
+
+We can save the raw data:
+```{r, eval=FALSE}
+save(data_P_TOTAL, file = "../data/output/minagri/data_P_TOTAL.rda")
+save(data_S_TOTAL, file = "../data/output/minagri/data_S_TOTAL.rda")
+save(data_SR_TOTAL, file = "../data/output/minagri/data_SR_TOTAL.rda")
+save(data_Px_TOTAL, file = "../data/output/minagri/data_Px_TOTAL.rda")
+```
+
+## Aggregation of Agricultural Datasets
+
+We can load the datasets obtained previously:
+```{r}
+load("../data/output/minagri/data_P_TOTAL.rda")
+load("../data/output/minagri/data_S_TOTAL.rda")
+load("../data/output/minagri/data_SR_TOTAL.rda")
+load("../data/output/minagri/data_Px_TOTAL.rda")
+```
+
+### Harmonization
+
+Harmonizing the production, surfaces and prices datasets.
+
+Production prices:
+```{r}
+data_Px_TOTAL <- data_Px_TOTAL |> 
+  mutate(
+    region = str_replace_all(region, "á", "a"),
+    region = str_replace_all(region, "í", "i"),
+    region = str_replace_all(region, "é", "e"),
+    region = str_replace_all(region, "ó", "o"),
+    region = str_replace_all(region, "ú", "u"),
+    region = str_replace_all(region, "ñ", "n")
+  ) |> 
+  mutate(region = toupper(iconv(region, to = "ASCII//TRANSLIT"))) |> 
+  mutate(
+    region = toupper(region), 
+    product = toupper(product), 
+    product = ifelse(
+      product == "FRIJOL GRANO SECO**",
+      yes = "FRIJOL GRANO SECO", 
+      no = product
+    )
+  )
+```
+
+
+Harvested surface:
+```{r}
+data_SR_TOTAL <- data_SR_TOTAL |> 
+  mutate(
+    region = str_replace_all(region, "á", "a"),
+    region = str_replace_all(region, "í", "i"),
+    region = str_replace_all(region, "é", "e"),
+    region = str_replace_all(region, "ó", "o"),
+    region = str_replace_all(region, "ú", "u"),
+    region = str_replace_all(region, "ñ", "n")
+  ) |> 
+  mutate(region = toupper(iconv(region, to = "ASCII//TRANSLIT"))) |> 
+  mutate(region = toupper(region), 
+         product = toupper(product), 
+         product = ifelse(
+           product == "FRIJOL GRANO SECO**",
+           yes = "FRIJOL GRANO SECO",
+           no = product)
+  )
+```
+
+
+### Aggregation in a single tibble
+
+```{r, eval=FALSE}
+data <- data_P_TOTAL |> 
+  mutate(
+    region = str_replace_all(region, "á", "a"),
+    region = str_replace_all(region, "í", "i"),
+    region = str_replace_all(region, "é", "e"),
+    region = str_replace_all(region, "ó", "o"),
+    region = str_replace_all(region, "ú", "u"),
+    region = str_replace_all(region, "ñ", "n")) |> 
+  mutate(region = toupper(iconv(region, to = "ASCII//TRANSLIT"))
+  ) |> 
+  mutate(
+    region = toupper(region), 
+    product = toupper(product), 
+    month = as.numeric(month)
+  ) |> 
+  full_join(
+    data_S_TOTAL |> 
+      select(-c(year,month)), 
+    by = c("region","product","date")
+  ) |>  
+  filter(! is.na(year)) |> 
+  # No consequences on the aggregation because the missing data are not in the
+  # product sample used hereafter. (except for Lima but without production value)
+  full_join(
+    data_Px_TOTAL |> 
+      select(-c(year,month)), 
+    by = c("region","product","date")
+  ) |>  
+  filter(product %in% c(
+    "PAPA", "CEBADA GRANO", "MAÍZ AMARILLO DURO", "MAÍZ AMILÁCEO",
+    "ARROZ CÁSCARA", "SORGO GRANO", "YUCA", "TRIGO")
+  ) |> 
+  select(
+    region, product, year, month, date, 
+    Value_prod, surf_m, surf_lag_calend, Value_prices, 
+    campaign, month_campaign, campaign_plain, id
+  ) |> 
+
+  full_join(
+    data_SR_TOTAL |> 
+      select(- month, - year), 
+    by = c("region","product","date")
+  ) |>
+  filter(product %in% c(
+    "PAPA", "CEBADA GRANO", "MAÍZ AMARILLO DURO", "MAÍZ AMILÁCEO",
+    "ARROZ CÁSCARA", "SORGO GRANO", "YUCA", "TRIGO")
+  ) |>
+  filter(! region %in% c(
+    "Lima Metropolitana", "Callao", "LIMA METROPOLITANA",
+    "CALLAO", "PROMEDIO NACIONAL")
+  ) |>
+  filter(! is.na(region)) |> 
+  filter(! product %in% c("SORGO GRANO", "CEBADA GRANO"))
+```
+
+
+Some values are missing. Let us deal with those.
+```{r, eval=FALSE}
+missing_values <- readxl::read_excel(
+  path = "../data/raw/Macro/Datos_INEI1.xlsx",
+  sheet = "SELECTED2",
+  col_types = "text"
+) |> 
+  mutate(
+    region = str_replace_all(region, "á", "a"),
+    region = str_replace_all(region, "í", "i"),
+    region = str_replace_all(region, "é", "e"),
+    region = str_replace_all(region, "ó", "o"),
+    region = str_replace_all(region, "ú", "u"),
+    region = str_replace_all(region, "ñ", "n")
+  ) |> 
+  mutate(
+    region = toupper(iconv(region, to = "ASCII//TRANSLIT")),
+    region = toupper(region), 
+    product = toupper(product)
+  ) |> 
+  select(-Indicador) |> 
+  pivot_longer(cols = c(NOV,DEC), names_to = "name_month") |> 
+  mutate(
+    year = 2008, 
+    month = ifelse(name_month == "NOV", 11, 12)
+  ) |> 
+  select(-name_month)
+```
+
+
+```{r, eval=FALSE}
+data_agri <- data |> 
+  left_join(
+    missing_values,
+    by = c("region" ,"product" ,"month","year")
+  ) |> 
+  mutate(
+    Value_prod = ifelse(
+      # The price data in Nov. 2008 are the same as that of Oct...
+      year == 2008 & month %in% c(11,12),
+      yes = as.numeric(value), 
+      no = Value_prod
+    )
+  ) |> 
+  select(-value) |> 
+  select(-id) |> 
+  relocate(
+    region, product, year, month, date, 
+    Value_prod, surf_m,
+    Value_surfR, Value_prices, 
+    campaign, campaign_plain, month_campaign
+  ) |> 
+  filter(
+    ! is.na(year), 
+    ! region %in% c(
+      "TOTAL NACIONAL", "CALLAO", "LIMA METROPOLITANA",
+      "PROMEDIO NACIONAL", "LIMA PROVINCIAS"
+    )
+  )
+rm(data)
+```
+
+Let us save that table:
+```{r, eval=FALSE}
+save(data_agri, file = "../data/output/minagri/data_agri.rda")
+```
+
+
+
+## Final Aggregation
+
+```{r}
+load("../data/output/minagri/data_agri.rda")
+```
+
+```{r}
+length(unique(data_agri$region)) * 
+  length(unique(data_agri$product)) *
+  length(unique(data_agri$date))
+```
+
+Let us fill the table if some rows are missing for the triplet region x product x date:
+```{r}
+data_agri <- 
+  data_agri |> 
+  complete(region, product, date)
+```
+
+Are there any duplicated triplet?
+```{r}
+data_agri |> 
+  group_by(region, product, date) |> 
+  count() |> 
+  filter(n>1)
+
+```
+
+
+
+```{r}
+data_total <-  
+  data_agri |> 
+  unique() |> 
+  filter(! region == "TOTAL NACIONAL") |> 
+    # Adding the english names of the selected crops
+  mutate(
+    product_eng = case_when(
+      product == "ARROZ CÁSCARA"      ~ "Rice",
+      product == "MAÍZ AMARILLO DURO" ~ "Dent corn",
+      product == "MAÍZ AMILÁCEO"      ~ "Amylaceous corn", 
+      product == "PAPA"               ~ "Potato", 
+      product == "TRIGO"              ~ "Wheat", 
+      product == "YUCA"               ~ "Cassava", 
+      TRUE ~ product)
+  ) |> 
+  group_by(region, product, year) |> 
+  # Computing the share of the annual production harvested at month m 
+  mutate(
+    perc_product = ifelse(Value_prod == 0, NA, Value_prod) / 
+      sum( ifelse(Value_prod == 0, NA, Value_prod), na.rm = T)
+  ) |> 
+  ungroup() |> 
+  group_by(region, product, month) |> 
+  # Computing the average share of the annual production harvested at month m
+  mutate(perc_product_mean = mean(perc_product, na.rm = T)) |> 
+   ungroup()
+```
+
+
+```{r}
+data_total <- data_total |>
+  arrange(region, product, date) |> 
+  group_by(region) |> 
+  mutate(region_id = cur_group_id()) |> 
+  ungroup() |> 
+  # Computing the log of the quantities and prices
+  mutate(
+    ln_prices = log(Value_prices + 1), 
+    ln_produc = log(Value_prod + 1)
+  ) |> 
+  relocate(region_id, region, product, date, ln_prices, ln_produc)
+```
+
+Let us determine the start of the harvest season:
+```{r}
+data_total <- 
+  data_total |> 
+  arrange(region, product_eng, date) |> 
+  # Computing the difference between planted and harvested surfaces at time t 
+  mutate(diff_plant_harv = surf_m - Value_surfR) |> 
+  group_by(region, product_eng) |> 
+ # Computing the cumulative difference and normalizing the detrended component
+  mutate(exposition = cumsum(replace_na(diff_plant_harv, 0))) |> 
+  mutate(exposition_trend = as.vector(
+    mFilter::hpfilter(
+      exposition, freq = 14400, type = "lambda", drift = FALSE
+    )$trend)
+  ) |> 
+  mutate(exposition_detrended = exposition - exposition_trend) |> 
+  mutate(
+    exposition_norm = (exposition_detrended - min(exposition_detrended)) / 
+      (max(exposition_detrended) - min(exposition_detrended))
+  ) |> 
+  ungroup() 
+```
+
+We add labels to each column:
+```{r, eval=FALSE}
+data_total <- 
+  data_total |> 
+  labelled::set_variable_labels(
+    region_id = "Region numerical ID",
+    region = "Name of the region",
+    product = "Name of the crop (in Spanish)",
+    date = "Date (YYYY-MM-DD)",
+    ln_prices = "Product price (log)",
+    ln_produc = "Production (log of tons)",
+    year = "Year (YYYY)",
+    month = "Month (MM)",
+    Value_prod = "Production (tons)",
+    surf_m = "Planted Surface during the current month (hectares)",
+    surf_lag_calend = "Planted Surface laggued by the growth duration computed from the caledars (hectares)",
+    Value_surfR = "Harvested Surface (hectares)",
+    Value_prices = "Unit Price (Pesos)",
+    campaign = "ID of the planting campaing (starting in August)",
+    campaign_plain = "Years of the planting campaing (starting in August)",
+    month_campaign = "Month of the planting campaing (August = 1)",
+    product_eng = "Name of the Product (in English)",
+    perc_product = "Share of the annual production harvested at month m",
+    perc_product_mean = "Average share of the annual production harvested at month m",
+    diff_plant_harv = "Difference between planted and harvested surfaces during month m",
+    exposition = "Cumulative difference between planted and harvested surfaces",
+    exposition_trend = "Trend of the exposition using HP filter",
+    exposition_detrended = "Difference between the exposition and its trend",
+    exposition_norm = "Normalisation of the detrended exposition"
+  )
+```
+
+
+
+And lastly, let us save the resulting data
+
+```{r, eval=FALSE}
+save(data_total, file = "../data/output/minagri/dataset_agri_2001_2015.rda")
+write.csv(data_total, "../data/output/minagri/dataset_agri_2001_2015.csv")
+```
+
+
+## Content of the dataset
+
+| Variable name | Type | Description |
+| :------------ | ---- | ----------- |
+| `region_id` | integer | Region numerical ID |
+| `region` | character | Name of the region |
+| `product` | character | Name of the crop (in Spanish) |
+| `date` | Date | Date (YYYY-MM-DD) |
+| `ln_prices` | numeric | Product price (log) |
+| `ln_produc` | numeric | Production (log of tons) |
+| `year` | numeric | Year (YYYY) |
+| `month` | numeric | Month (MM) |
+| `Value_prod` | numeric | Production (tons) |
+| `surf_m` | numeric | Planted Surface during the current month (hectares) |
+| `Value_surfR` | numeric | Harvested Surface (hectares) |
+| `Value_prices` | numeric | Unit Price (Pesos) |
+| `campaign` | numeric | ID of the planting campaing (starting in August) |
+| `campaign_plain` | character | Years of the planting campaing (starting in August) |
+| `month_campaign` | numeric | Month of the planting campaing (August = 1) |
+| `surf_lag_calend` | numeric | Planted Surface laggued by the growth duration computed from the caledars (hectares) |
+| `product_eng` | character | Name of the Product (in English) |
+| `perc_product` | numeric | Share of the annual production harvested at month m |
+| `perc_product_mean` | numeric | Average share of the annual production harvested at month m |
+| `diff_plant_harv` | numeric | Difference between planted and harvested surfaces during month m |
+| `exposition` | numeric | Cumulative difference between planted and harvested surfaces |
+| `exposition_trend` | numeric | Trend of the exposition using HP filter |
+| `exposition_detrended` | numeric | Difference between the exposition and its trend |
+| `exposition_norm` | numeric | Normalisation of the detrended exposition |
+
+: Variables in the `dataset_agri_2001_2015.rda` file {#tbl-desc-variables-dataset-agri}
