@@ -36,11 +36,11 @@ The second, third and fourth parts, where we provide the scripts to run the esti
 The codes presented in this ebook are available in the `R` folder. The functions that are sourced within those R scripts are defined the `weatherperu/R` folder (the `weatherperu` is our R package that helps us create and document the functions used to perform the analysis). This package does not need to be _installed_.
 
 - **Full version**: Replication codes + ebook + data (408Mo):  
-  <a href="./replication_codes_and_data.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Full zip archive (412Mo)</a>
+  <a href="https://egallic.fr/Recherche/weather-peru-v2/replication_codes_and_data.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Full zip archive (412Mo)</a>
 - **Light version**: Replication codes only (no data) (31.5Mo):  
-  <a href="./replication_codes.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">{{< fa brands r-project >}} codes (184ko)</a>
+  <a href="https://egallic.fr/Recherche/weather-peru-v2/replication_codes.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">{{< fa brands r-project >}} codes (184ko)</a>
 - **Light version of the datasets**: 
-  <a href="./data_light.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Zip archive with light datasets (1.2Mo)</a>
+  <a href="https://egallic.fr/Recherche/weather-peru-v2/data_light.zip" class="btn btn-primary btn-sm" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Zip archive with light datasets (1.2Mo)</a>
 
 The following tree architecture is adopted:
 
