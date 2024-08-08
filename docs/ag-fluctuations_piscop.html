@@ -1,0 +1,2130 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.4.553">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>The Dynamic Effects of Weather Shocks on Agricultural Production - 10&nbsp; From Regional to Aggregate Fluctuations</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./robustness-data-merge-quarter.html" rel="next">
+<link href="./local_projections_seasonal_piscop.html" rel="prev">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({ TeX: { extensions: ["color.js"] }});
+</script>
+<script type="text/x-mathjax-config">
+	MathJax.Hub.Register.StartupHook("TeX color Ready", function() {
+	     MathJax.Extension["TeX/color"].colors["wongBlack"] = '#000000';
+		 MathJax.Extension["TeX/color"].colors["wongGold"] = '#E69F00';
+		 MathJax.Extension["TeX/color"].colors["wongLightBlue"] = '#56B4E9';
+		 MathJax.Extension["TeX/color"].colors["wongGreen"] = '#009E73';
+		 MathJax.Extension["TeX/color"].colors["wongYellow"] = '#F0E442';
+		 MathJax.Extension["TeX/color"].colors["wongBlue"] = '#0072B2';
+		 MathJax.Extension["TeX/color"].colors["wongOrange"] = '#D55E00';
+		 MathJax.Extension["TeX/color"].colors["wongPurple"] = '#CC79A7';
+		 
+		 
+		 MathJax.Extension["TeX/color"].colors["IBMBlue"] = '#648FFF';
+		 MathJax.Extension["TeX/color"].colors["IBMPurple"] = '#785EF0';
+		 MathJax.Extension["TeX/color"].colors["IBMMagenta"] = '#DC267F';
+		 MathJax.Extension["TeX/color"].colors["IBMOrange"] = '#FE6100';
+		 MathJax.Extension["TeX/color"].colors["IBMYellow"] = '#FFB000';
+	});
+</script>
+
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar floating nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">The Dynamic Effects of Weather Shocks on Agricultural Production</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/3wen/weather-peru"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+          <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./ag-fluctuations_piscop.html">Macroeconomic Impacts</a></li><li class="breadcrumb-item"><a href="./ag-fluctuations_piscop.html"><span class="chapter-number">10</span>&nbsp; <span class="chapter-title">From Regional to Aggregate Fluctuations</span></a></li></ol></nav>
+        <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduction</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-expanded="true">
+ <span class="menu-text">I. Data</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./data-weather.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">Weather Data</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./data-agriculture.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Agricultural Data</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./data-macro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">Macroeconomic Data</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./data-other.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">4</span>&nbsp; <span class="chapter-title">Other Data</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./data-merge.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">5</span>&nbsp; <span class="chapter-title">Merging the files</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./data-desc-stats.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">6</span>&nbsp; <span class="chapter-title">Descriptive Statistics</span></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-expanded="true">
+ <span class="menu-text">II. Local Projections</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./local_projections_piscop.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">7</span>&nbsp; <span class="chapter-title">The Dynamic Effects of Weather Shocks</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./local_projections_quadratic_piscop.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">8</span>&nbsp; <span class="chapter-title">Quadratic Terms</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./local_projections_seasonal_piscop.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">9</span>&nbsp; <span class="chapter-title">Time-varying exposure to weather shocks</span></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-expanded="true">
+ <span class="menu-text">Macroeconomic Impacts</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ag-fluctuations_piscop.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text"><span class="chapter-number">10</span>&nbsp; <span class="chapter-title">From Regional to Aggregate Fluctuations</span></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-expanded="true">
+ <span class="menu-text">III. Robustness Check: Data Frequency</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-data-merge-quarter.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">11</span>&nbsp; <span class="chapter-title">Merging: quarterly data</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-data-merge-annual.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">12</span>&nbsp; <span class="chapter-title">Merging: annual data</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-local_projections-quarter.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">13</span>&nbsp; <span class="chapter-title">Quarterly Agricultural Production (LP)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-local_projections-annual.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">14</span>&nbsp; <span class="chapter-title">Annual Agricultural Production (LP)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-local_projections-comparison.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">15</span>&nbsp; <span class="chapter-title">Monthly/Quarterly/Annual Comparison (LP)</span></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-expanded="true">
+ <span class="menu-text">IV. Robustness Check: CHIRPS Data</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-local_projections_chirps.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">16</span>&nbsp; <span class="chapter-title">Agricultural Production (LP)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-ag-fluctuations_chirps.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">17</span>&nbsp; <span class="chapter-title">Aggregate Fluctuations</span></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" aria-expanded="true">
+ <span class="menu-text">V. Robustness Check: Other</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-local_projections_posvsneg.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">18</span>&nbsp; <span class="chapter-title">Agricultural Production: Positive vs.&nbsp;Negative Surprise Shocks (LP)</span></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./robustness-local_projections_until_2014.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">19</span>&nbsp; <span class="chapter-title">Agricultural Production (LP): without 2015 data</span></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./references.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">References</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#sec-synthetic-measure-weather-piscop" id="toc-sec-synthetic-measure-weather-piscop" class="nav-link active" data-scroll-target="#sec-synthetic-measure-weather-piscop"><span class="header-section-number">10.1</span> Synthetic measure of the weather</a>
+  <ul class="collapse">
+  <li><a href="#step-1-weather-shock-contribution" id="toc-step-1-weather-shock-contribution" class="nav-link" data-scroll-target="#step-1-weather-shock-contribution"><span class="header-section-number">10.1.1</span> Step 1: Weather Shock Contribution</a></li>
+  <li><a href="#step-2-quantity-weights" id="toc-step-2-quantity-weights" class="nav-link" data-scroll-target="#step-2-quantity-weights"><span class="header-section-number">10.1.2</span> Step 2: Quantity Weights</a></li>
+  <li><a href="#step-3-crop-specific-weather-adjusted-agricultural-production" id="toc-step-3-crop-specific-weather-adjusted-agricultural-production" class="nav-link" data-scroll-target="#step-3-crop-specific-weather-adjusted-agricultural-production"><span class="header-section-number">10.1.3</span> Step 3: Crop-Specific Weather-Adjusted Agricultural Production</a></li>
+  <li><a href="#step-4-aggregation-at-the-national-level" id="toc-step-4-aggregation-at-the-national-level" class="nav-link" data-scroll-target="#step-4-aggregation-at-the-national-level"><span class="header-section-number">10.1.4</span> Step 4: Aggregation at the National Level</a></li>
+  <li><a href="#step-5-detrending" id="toc-step-5-detrending" class="nav-link" data-scroll-target="#step-5-detrending"><span class="header-section-number">10.1.5</span> Step 5: Detrending</a></li>
+  </ul></li>
+  <li><a href="#agricultural-production" id="toc-agricultural-production" class="nav-link" data-scroll-target="#agricultural-production"><span class="header-section-number">10.2</span> Agricultural Production</a></li>
+  <li><a href="#sec-var-macro-indicators-piscop" id="toc-sec-var-macro-indicators-piscop" class="nav-link" data-scroll-target="#sec-var-macro-indicators-piscop"><span class="header-section-number">10.3</span> Macroeconomic indicators</a></li>
+  <li><a href="#merging-the-data" id="toc-merging-the-data" class="nav-link" data-scroll-target="#merging-the-data"><span class="header-section-number">10.4</span> Merging the Data</a></li>
+  <li><a href="#estimation" id="toc-estimation" class="nav-link" data-scroll-target="#estimation"><span class="header-section-number">10.5</span> Estimation</a>
+  <ul class="collapse">
+  <li><a href="#results" id="toc-results" class="nav-link" data-scroll-target="#results"><span class="header-section-number">10.5.1</span> Results</a></li>
+  <li><a href="#restricted-var" id="toc-restricted-var" class="nav-link" data-scroll-target="#restricted-var"><span class="header-section-number">10.5.2</span> Restricted VAR</a></li>
+  <li><a href="#impulse-response-functions" id="toc-impulse-response-functions" class="nav-link" data-scroll-target="#impulse-response-functions"><span class="header-section-number">10.5.3</span> Impulse Response Functions</a></li>
+  </ul></li>
+  <li><a href="#estimation-with-local-projections" id="toc-estimation-with-local-projections" class="nav-link" data-scroll-target="#estimation-with-local-projections"><span class="header-section-number">10.6</span> Estimation with Local Projections</a></li>
+  <li><a href="#var-vs-lp" id="toc-var-vs-lp" class="nav-link" data-scroll-target="#var-vs-lp"><span class="header-section-number">10.7</span> VAR vs LP</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./ag-fluctuations_piscop.html">Macroeconomic Impacts</a></li><li class="breadcrumb-item"><a href="./ag-fluctuations_piscop.html"><span class="chapter-number">10</span>&nbsp; <span class="chapter-title">From Regional to Aggregate Fluctuations</span></a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title"><span id="sec-var-piscop" class="quarto-section-identifier"><span class="chapter-number">10</span>&nbsp; <span class="chapter-title">From Regional to Aggregate Fluctuations</span></span></h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Objectives
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This chapter investigates the transmission channels of a weather-induced shock in the agricultural production to the rest of the domestic economy.</p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+✔ dplyr     1.1.4     ✔ readr     2.1.5
+✔ forcats   1.0.0     ✔ stringr   1.5.1
+✔ ggplot2   3.5.1     ✔ tibble    3.2.1
+✔ lubridate 1.9.3     ✔ tidyr     1.3.1
+✔ purrr     1.0.2     
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(labelled)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The {seasonal} and {timetk} packages are needed in this chapter, for seasonal adjustment by X-13 ARIMA-SEATS. If these packages are not installed:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Do not run</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">"seasonal"</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">"timetk"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>We will need the <code class="sourceCode r"><span class="fu">theme_paper</span>()</code> function to add our theme to the plots made with ggplot2. This function is defined in the <code>utils.R</code> script.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"../weatherperu/R/utils.R"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="sec-synthetic-measure-weather-piscop" class="level2" data-number="10.1">
+<h2 data-number="10.1" class="anchored" data-anchor-id="sec-synthetic-measure-weather-piscop"><span class="header-section-number">10.1</span> Synthetic measure of the weather</h2>
+<p>This section provides a detailed description of the methodology employed to create the synthetic measure of the weather.</p>
+<p>We need to load the results from the estimations made in <a href="local_projections_piscop.html" class="quarto-xref">Chapter&nbsp;<span>7</span></a>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"../R/output/resul_lp_piscop.rda"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Data used in the local projections</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"../data/output/df_lp.rda"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The average price of each crop in the data, denoted hereafter <span class="math inline">\(p_c\)</span>:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>average_price_crops <span class="ot">&lt;-</span> </span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  df <span class="sc">|&gt;</span> <span class="fu">group_by</span>(product_eng) <span class="sc">|&gt;</span> </span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">price_crop =</span> <span class="fu">mean</span>(Value_prices, <span class="at">na.rm =</span> <span class="cn">TRUE</span>))</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>average_price_crops</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 4 × 2
+  product_eng price_crop
+  &lt;chr&gt;            &lt;dbl&gt;
+1 Cassava          0.550
+2 Dent corn        0.680
+3 Potato           0.578
+4 Rice             0.671</code></pre>
+</div>
+</div>
+<p>Then, we can put the coefficients in a table, for each crop and each time horizon:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>weather_variables <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"temp_max_dev"</span>, <span class="st">"precip_piscop_sum_dev"</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>coefs_weather <span class="ot">&lt;-</span> <span class="fu">map</span>(</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">.x =</span> resul_lp,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">.f =</span> <span class="sc">~</span> .x<span class="sc">$</span>coefs <span class="sc">|&gt;</span> </span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(name <span class="sc">%in%</span> weather_variables) <span class="sc">|&gt;</span> </span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(horizon, name, value)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="fu">names</span>(coefs_weather) <span class="ot">&lt;-</span> <span class="fu">map_chr</span>(resul_lp, <span class="st">"crop_name"</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>coefs_weather <span class="ot">&lt;-</span> </span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list_rbind</span>(coefs_weather, <span class="at">names_to =</span> <span class="st">"crop"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Then, we follow a methodology consisting of several key steps.</p>
+<section id="step-1-weather-shock-contribution" class="level3" data-number="10.1.1">
+<h3 data-number="10.1.1" class="anchored" data-anchor-id="step-1-weather-shock-contribution"><span class="header-section-number">10.1.1</span> Step 1: Weather Shock Contribution</h3>
+<p>The first step involves estimating the contribution of weather shocks at each time period (<span class="math inline">\(t\)</span>) for the chosen crop (<span class="math inline">\(c\)</span>) and time horizon (<span class="math inline">\(h\)</span>). This contribution is determined by considering the weather variables, temperature (<span class="math inline">\(T_{i,t}\)</span>) and precipitation (<span class="math inline">\(P_{i,t}\)</span>), and their respective coefficients (<span class="math inline">\(\beta_{c,h}^{T}\)</span> as well as <span class="math inline">\(\beta_{c,h}^{P}\)</span>). The weather shock contribution (<span class="math inline">\(\Gamma_{c,i,t,h}\)</span>) is obtained by multiplying these coefficients with the corresponding weather variables and summing them up:</p>
+<p><span id="eq-contrib-horizon"><span class="math display">\[\Gamma_{c,i,t,h} = \beta_{c,h}^{T} T_{i,t-h} + \beta_{c,h}^{P} P_{i,t-h} \tag{10.1}\]</span></span></p>
+<p>This first step is performed, using two user-defined functions: <code class="sourceCode r"><span class="fu">weather_contrib_crop_h</span>()</code> which computes the contribution of the weather for a single crop and time horizon, and with <code>contrib_weather_crop()</code> which uses the former to compute the contribution of the weather for a single crop, for all horizons considered. We will consider 9 horizons:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>nb_periods_wcal <span class="ot">&lt;-</span> <span class="dv">9</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>coefs_weather <span class="ot">&lt;-</span> coefs_weather <span class="sc">|&gt;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(horizon <span class="sc">&lt;=</span> nb_periods_wcal)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">#' Computes the contribution of the weather for a single crop and time horizon</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co">#'</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co">#' @param lp_crop LP for a specific crop</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co">#' @param h horizon (single value)</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co">#' @param weather_variables vector of names of the weather variables</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co">#' @param ic_conf confidence interval used to determine whether a shock has a</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co">#'   significant effect (default to .95)</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>weather_contrib_crop_h <span class="ot">&lt;-</span> <span class="cf">function</span>(lp_crop,</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>                                   h,</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>                                   weather_variables,</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>                                   <span class="at">ic_conf =</span> .<span class="dv">95</span>) {</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>  <span class="co"># The data</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>  data_lp <span class="ot">&lt;-</span> lp_crop<span class="sc">$</span>data_lp</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>  data_lp <span class="ot">&lt;-</span> data_lp[[<span class="fu">which</span>(<span class="fu">names</span>(data_lp) <span class="sc">==</span> h)]] <span class="sc">|&gt;</span> </span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(region_id, date, product_eng, <span class="sc">!!</span>weather_variables) <span class="sc">|&gt;</span> </span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ungroup</span>()</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>  <span class="co"># The coefficients</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>  lp_coefs <span class="ot">&lt;-</span> </span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    lp_crop<span class="sc">$</span>coefs <span class="sc">|&gt;</span> </span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(horizon <span class="sc">==</span> <span class="sc">!!</span>h, name <span class="sc">%in%</span> <span class="sc">!!</span>weather_variables) <span class="sc">|&gt;</span> </span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>      <span class="at">value_lb =</span> value <span class="sc">-</span> <span class="fu">qnorm</span>(<span class="dv">1</span> <span class="sc">-</span> ((<span class="dv">1</span> <span class="sc">-</span> ic_conf) <span class="sc">/</span> <span class="dv">2</span>)) <span class="sc">*</span> std,</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>      <span class="at">value_ub =</span> value <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="dv">1</span> <span class="sc">-</span> ((<span class="dv">1</span> <span class="sc">-</span> ic_conf) <span class="sc">/</span> <span class="dv">2</span>)) <span class="sc">*</span> std</span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Keeping the values</span></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>  lp_coefs_value <span class="ot">&lt;-</span> lp_coefs<span class="sc">$</span>value</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>  <span class="co"># The lower and upper bounds</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>  lp_coefs_value_lb <span class="ot">&lt;-</span> lp_coefs<span class="sc">$</span>value_lb</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>  lp_coefs_value_ub <span class="ot">&lt;-</span> lp_coefs<span class="sc">$</span>value_ub</span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>  data_lp <span class="sc">|&gt;</span> </span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>    <span class="fu">nest</span>(<span class="at">.by =</span> <span class="fu">c</span>(date, region_id)) <span class="sc">|&gt;</span> </span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>      <span class="at">contribution =</span> <span class="fu">map</span>(</span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>        <span class="at">.x =</span> data,</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>        <span class="at">.f =</span> <span class="sc">~</span> <span class="fu">as.matrix</span>(.x[, weather_variables]) <span class="sc">%*%</span> lp_coefs_value <span class="sc">|&gt;</span> </span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>          <span class="fu">sum</span>()</span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>      ),</span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>      <span class="at">contribution_lb =</span> <span class="fu">map</span>(</span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>        <span class="at">.x =</span> data,</span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>        <span class="at">.f =</span> <span class="sc">~</span> <span class="fu">as.matrix</span>(.x[, weather_variables]) <span class="sc">%*%</span> lp_coefs_value_lb <span class="sc">|&gt;</span> </span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a>          <span class="fu">sum</span>()</span>
+<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a>      ),</span>
+<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a>      <span class="at">contribution_ub =</span> <span class="fu">map</span>(</span>
+<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a>        <span class="at">.x =</span> data,</span>
+<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>        <span class="at">.f =</span> <span class="sc">~</span> <span class="fu">as.matrix</span>(.x[, weather_variables]) <span class="sc">%*%</span> lp_coefs_value_ub <span class="sc">|&gt;</span> </span>
+<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>          <span class="fu">sum</span>()</span>
+<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>      )</span>
+<span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span> </span>
+<span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a>    <span class="fu">unnest</span>(<span class="at">cols =</span> <span class="fu">c</span>(contribution, contribution_lb, contribution_ub)) <span class="sc">|&gt;</span> </span>
+<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(<span class="sc">-</span>data) <span class="sc">|&gt;</span> </span>
+<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a>      <span class="at">significant =</span> (contribution_lb <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> contribution_ub <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">|</span> (contribution_lb <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> contribution_ub <span class="sc">&lt;</span> <span class="dv">0</span>),</span>
+<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a>      <span class="at">significant =</span> <span class="fu">as.numeric</span>(significant)</span>
+<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span> </span>
+<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">date =</span> date <span class="sc">+</span> lubridate<span class="sc">::</span><span class="fu">period</span>(<span class="fu">str_c</span>(<span class="sc">!!</span>h, <span class="st">" month"</span>)))</span>
+<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">#' Computes the contribution of the weather for a single crop, for all horizons</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co">#'</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co">#' @param lp_crop LP for a specific crop</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co">#' @param weather_variables vector of names of the weather variables</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co">#' @param horizons vector of horizons. If `NULL`, uses all horizons in lp_crop</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>contrib_weather_crop <span class="ot">&lt;-</span> <span class="cf">function</span>(lp_crop,</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>                                 weather_variables,</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>                                 <span class="at">horizons =</span> <span class="cn">NULL</span>) {</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">is.null</span>(horizons)) horizons <span class="ot">&lt;-</span> <span class="fu">unique</span>(lp_crop<span class="sc">$</span>coefs<span class="sc">$</span>horizon)</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map</span>(</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">.x =</span> horizons,</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">.f =</span> <span class="sc">~</span><span class="fu">weather_contrib_crop_h</span>(</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>      <span class="at">lp_crop =</span> lp_crop, </span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>      <span class="at">h =</span> .x, </span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>      <span class="at">weather_variables =</span> weather_variables</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span> </span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(<span class="at">horizon =</span> .x)</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">list_rbind</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    <span class="co"># group_by(date) |&gt; </span></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># summarise(value = sum(contribution)) |&gt; </span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">crop =</span> lp_crop<span class="sc">$</span>crop_name) <span class="sc">|&gt;</span> </span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">contribution_signif =</span> contribution <span class="sc">*</span> significant)</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let us compute the <span class="math inline">\(\Gamma_{c,i,t,h}\)</span> for each crop, region, date and horizon:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>weather_measure_crop <span class="ot">&lt;-</span> </span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map</span>(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">.x =</span> resul_lp,</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">.f =</span> <span class="sc">~</span><span class="fu">contrib_weather_crop</span>(</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">lp_crop =</span> .x, </span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">weather_variables =</span> weather_variables,</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">horizons =</span> <span class="dv">0</span><span class="sc">:</span>nb_periods_wcal</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list_rbind</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let us add the monthly regional selling prices of the crops (<code class="sourceCode r">df<span class="sc">$</span>Value_prices</code>), as well as the average crop-specific prices computed earlier on the whole sample (<code class="sourceCode r">average_price_crops<span class="sc">$</span>price_crop</code>) which will be used as a weight when we will aggregate all crops.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>weather_measure_crop <span class="ot">&lt;-</span> </span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  weather_measure_crop <span class="sc">|&gt;</span> </span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    df <span class="sc">|&gt;</span> <span class="fu">select</span>(product_eng, region_id, date, y_new, Value_prices),</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"date"</span>, <span class="st">"crop"</span> <span class="ot">=</span> <span class="st">"product_eng"</span>, <span class="st">"region_id"</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    average_price_crops,</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"crop"</span> <span class="ot">=</span> <span class="st">"product_eng"</span>)</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>weather_measure_crop</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 136,890 × 12
+   date       region_id contribution contribution_lb contribution_ub significant
+   &lt;date&gt;     &lt;fct&gt;            &lt;dbl&gt;           &lt;dbl&gt;           &lt;dbl&gt;       &lt;dbl&gt;
+ 1 2001-01-01 1              0.354           0.443            0.265            1
+ 2 2001-02-01 1              0.267           0.363            0.171            1
+ 3 2001-03-01 1              0.167           0.207            0.128            1
+ 4 2001-04-01 1              0.0955          0.138            0.0526           1
+ 5 2001-05-01 1              0.110           0.133            0.0874           1
+ 6 2001-06-01 1              0.197           0.256            0.138            1
+ 7 2001-07-01 1              0.116           0.147            0.0855           1
+ 8 2001-08-01 1              0.0466          0.0658           0.0275           1
+ 9 2001-09-01 1              0.124           0.136            0.113            1
+10 2001-10-01 1              0.00941         0.00436          0.0145           1
+# ℹ 136,880 more rows
+# ℹ 6 more variables: horizon &lt;int&gt;, crop &lt;chr&gt;, contribution_signif &lt;dbl&gt;,
+#   y_new &lt;dbl&gt;, Value_prices &lt;dbl&gt;, price_crop &lt;dbl&gt;</code></pre>
+</div>
+</div>
+</section>
+<section id="step-2-quantity-weights" class="level3" data-number="10.1.2">
+<h3 data-number="10.1.2" class="anchored" data-anchor-id="step-2-quantity-weights"><span class="header-section-number">10.1.2</span> Step 2: Quantity Weights</h3>
+<p>For each crop and date <span class="math inline">\(t\)</span>, we define some weights for the regional observations using the data observed at horizon <span class="math inline">\(h=0\)</span>, as the sum of the monthly agricultural production over the regions considered in the analysis. <strong>The monthly production is expressed in monetary terms</strong>, by multiplying the quantities (<code>y_new</code>, i.e., <span class="math inline">\(y^{raw}\)</span>) by unit price (<code>price_crop</code>, i.e., <span class="math inline">\(p_c\)</span>).</p>
+<p><span class="math display">\[\omega_{c,t} = \sum_{i} y^{\text{raw}}_{c,t,i} \times p_{c}\]</span></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>quantity_weight <span class="ot">&lt;-</span> </span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  weather_measure_crop <span class="sc">|&gt;</span> </span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(horizon <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(crop, date, horizon, price_crop) <span class="sc">|&gt;</span> </span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">quantity_weight =</span> <span class="fu">sum</span>(price_crop <span class="sc">*</span> y_new), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(crop, date, quantity_weight)</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>quantity_weight</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 720 × 3
+   crop    date       quantity_weight
+   &lt;chr&gt;   &lt;date&gt;               &lt;dbl&gt;
+ 1 Cassava 2001-01-01          38797.
+ 2 Cassava 2001-02-01          39625.
+ 3 Cassava 2001-03-01          44893.
+ 4 Cassava 2001-04-01          44893.
+ 5 Cassava 2001-05-01          41857.
+ 6 Cassava 2001-06-01          36333.
+ 7 Cassava 2001-07-01          36333.
+ 8 Cassava 2001-08-01          39766.
+ 9 Cassava 2001-09-01          36525.
+10 Cassava 2001-10-01          36525.
+# ℹ 710 more rows</code></pre>
+</div>
+</div>
+</section>
+<section id="step-3-crop-specific-weather-adjusted-agricultural-production" class="level3" data-number="10.1.3">
+<h3 data-number="10.1.3" class="anchored" data-anchor-id="step-3-crop-specific-weather-adjusted-agricultural-production"><span class="header-section-number">10.1.3</span> Step 3: Crop-Specific Weather-Adjusted Agricultural Production</h3>
+<p>For each crop <span class="math inline">\(c\)</span>, at each date <span class="math inline">\(t\)</span>, we compute the weather-adjusted agricultural production, <span class="math inline">\(y_{c,t}^{\omega}\)</span>, as the sum of the significant crop-specific contributions of the weather to the agricultural production. The crop-specific contribution across regions is first aggregated at the national level, using an average of the crop and region-specific contribution of the weather to the monetary equivalence of the agricultural production.</p>
+<p><span class="math display">\[y_{c,t}^{\omega} = \sum_{h}\sum_{i} \frac{\mathbb{1}_{\text{signif}_{c,i,t,h}} \times \gamma_{c,i,t,h} \times p_{c} \times  y^{\text{raw}}_{c,t,i}}{\text{card}(I_{c,t})},\]</span></p>
+<p>where <span class="math inline">\(\text{card(I)}\)</span> is the number of regions that produce crop <span class="math inline">\(c\)</span> at time <span class="math inline">\(t\)</span>. The characteristic function <span class="math inline">\(\mathbb{1}_{\text{signif}_{c,it,h}}\)</span> is equal to 1 when the contribution is significantly different from 0 (using the 95% confidence intervals of the coefficients <span class="math inline">\(\beta_{c,h}^{T}\)</span> and <span class="math inline">\(\beta_{c,h}^{P}\)</span>), and is equal to 0 otherwise.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>weather_adjusted_ag <span class="ot">&lt;-</span> </span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  weather_measure_crop <span class="sc">|&gt;</span> </span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="co"># each group: observations across regions, for a crop x date x horizon</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(crop, date, horizon, price_crop) <span class="sc">|&gt;</span> </span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>  <span class="co"># weather-adjusted agricultural production at each horizon</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>  <span class="co"># y_{c,t,h}^{w}</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">y_w =</span> <span class="fu">sum</span>(price_crop <span class="sc">*</span> contribution_signif <span class="sc">*</span>  y_new <span class="sc">/</span> <span class="fu">n</span>(), <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(crop, date) <span class="sc">|&gt;</span> </span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>  <span class="co"># weather-adjusted agricultural production summed over horizons</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>  <span class="co"># y_{c,t}^{w}</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">y_w =</span> <span class="fu">sum</span>(y_w),</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="step-4-aggregation-at-the-national-level" class="level3" data-number="10.1.4">
+<h3 data-number="10.1.4" class="anchored" data-anchor-id="step-4-aggregation-at-the-national-level"><span class="header-section-number">10.1.4</span> Step 4: Aggregation at the National Level</h3>
+<p>Then, we aggregate the crop-specific weather-adjusted agricultural production at the national level using the following formula: <span class="math display">\[y_{t}^{\omega} = \frac{\sum_{c} y_{c,t}^{\omega}}{\sum_{c}\omega_{c,t}},\]</span></p>
+<p>where <span class="math inline">\(\omega_{c,t}\)</span> are the quantity weights computed in the second step.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>w_df <span class="ot">&lt;-</span> </span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  weather_adjusted_ag <span class="sc">|&gt;</span> </span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(quantity_weight, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"crop"</span>, <span class="st">"date"</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(date) <span class="sc">|&gt;</span> </span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">w =</span> <span class="fu">sum</span>(y_w) <span class="sc">/</span> <span class="fu">sum</span>(quantity_weight),</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="step-5-detrending" class="level3" data-number="10.1.5">
+<h3 data-number="10.1.5" class="anchored" data-anchor-id="step-5-detrending"><span class="header-section-number">10.1.5</span> Step 5: Detrending</h3>
+<p>Lastly, we express the national weather-adjusted production as a loss, and take it as a deviation from its trend:</p>
+<p><span class="math display">\[
+W_{t} = -100 \times (y_{t}^{\omega} - \overline{y_{t}^{\omega}}),
+\]</span></p>
+<p>where <span class="math inline">\(y_{t}^{\omega}\)</span> is the trend, obtained with the HP filter.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load detrending functions</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"../weatherperu/R/detrending.R"</span>)</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>w_df <span class="ot">&lt;-</span> w_df <span class="sc">|&gt;</span> </span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">w_trend =</span> <span class="fu">hp_filter_trend</span>(w, <span class="at">freq =</span> <span class="dv">14400</span>),</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">w_dt =</span> <span class="sc">-</span> <span class="dv">100</span> <span class="sc">*</span> (w <span class="sc">-</span> w_trend),</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="agricultural-production" class="level2" data-number="10.2">
+<h2 data-number="10.2" class="anchored" data-anchor-id="agricultural-production"><span class="header-section-number">10.2</span> Agricultural Production</h2>
+<p>In the second step in the creation of the synthetic measure of the weater, we computed quantity weights <span class="math inline">\(\omega_{c,t}\)</span>, which correspond to the agricultural production in month <span class="math inline">\(t\)</span> for crop <span class="math inline">\(t\)</span>, expressed in monetary terms. Let us aggregate these values across crops to obtain a monthly agricultural production: <span class="math display">\[y_t^{A} = \sum_{c}\omega_{c,t}.\]</span></p>
+<p>We then express these as percentage deviation from their trend computed using the HP filter.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>agricultural_output <span class="ot">&lt;-</span> </span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  quantity_weight <span class="sc">|&gt;</span> </span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(date) <span class="sc">|&gt;</span> </span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">quantity_weight =</span> <span class="fu">sum</span>(quantity_weight), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Remove seasonality</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">q_sa =</span> <span class="fu">adj_season_X13</span>(quantity_weight, <span class="fu">ymd</span>(<span class="st">"2001-01-01"</span>)),</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Extract trend</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">q_sa_trend =</span> <span class="fu">hp_filter_trend</span>(q_sa, <span class="at">freq =</span> <span class="dv">14400</span>),</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Percentage dev. from trend</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">q =</span> <span class="dv">100</span> <span class="sc">*</span> <span class="fu">log</span>(q_sa <span class="sc">/</span> q_sa_trend)</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(date, q)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Note: this is actually not used.</p>
+</section>
+<section id="sec-var-macro-indicators-piscop" class="level2" data-number="10.3">
+<h2 data-number="10.3" class="anchored" data-anchor-id="sec-var-macro-indicators-piscop"><span class="header-section-number">10.3</span> Macroeconomic indicators</h2>
+<p>The vector of endogenous variables in the estimation, denoted as <span class="math inline">\(Y_t\)</span>, consists of eight variables: <span class="math inline">\(W_t\)</span>, <span class="math inline">\(RER_t\)</span>, <span class="math inline">\(\pi_t^{a}\)</span>, <span class="math inline">\(\pi_{t}\)</span> , <span class="math inline">\(X_t\)</span>, <span class="math inline">\(y^A_t\)</span>, <span class="math inline">\(y_t\)</span>, and <span class="math inline">\(r_t\)</span>:</p>
+<ul>
+<li><p><span class="math inline">\(W_t\)</span> represents the aggregate measure of weather-driven agricultural losses defined in <a href="#sec-synthetic-measure-weather-piscop" class="quarto-xref"><span>Section 10.1</span></a>, which quantifies the loss in agricultural value added due to weather shocks, expressed as a deviation from its trend. It is the focal variable of interest in this analysis.</p></li>
+<li><p><span class="math inline">\(RER_t\)</span> denotes the Real Exchange Rate (RER), which reflects the relative value of the domestic currency against a basket of foreign currencies.</p></li>
+<li><p><span class="math inline">\(\pi^a_t\)</span> corresponds to the percentage change of the Food Consumer Price Index (CPIA), which serves as a measure of food inflation.</p></li>
+<li><p><span class="math inline">\(\pi_t\)</span> corresponds to the percentage change of the Consumer Price Index (CPI), which serves as a measure of inflation.</p></li>
+<li><p><span class="math inline">\(X_t\)</span> denotes Exports.</p></li>
+<li><p><span class="math inline">\(y^A_t\)</span> is the Agricultural production.</p></li>
+<li><p><span class="math inline">\(y_t\)</span> represents the Gross Domestic Product (GDP), which serves as a measure of the overall economic activity and output in the country.</p></li>
+<li><p><span class="math inline">\(r_t\)</span> is the nominal rate.</p></li>
+</ul>
+<p>To construct the vectors <span class="math inline">\(Y_t\)</span>, we use data from the Central Reserve Bank of Perú.</p>
+<p>The Real Exchange Rate (RER) data are obtained using the token <em>PN01259PM</em>, the Food Consumer Price Index (CPIA) data with token <em>PN01336PM</em>, the Consumer Price Index (CPI) data with token <em>PN01270PM</em>, the Exports data with token <em>PN01461BM</em>, the GDP data with token <em>PN01773AM</em>, the agricultural GDP with token <em>PN01755AM</em>, and the nominal rate with token <em>PN07819NM</em>.</p>
+<p>Let us load the dataset of macroeconomic variables (see <a href="data-macro.html" class="quarto-xref">Chapter&nbsp;<span>3</span></a> for details on the construction of these variables).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"../data/output/macro/df_macro.rda"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="merging-the-data" class="level2" data-number="10.4">
+<h2 data-number="10.4" class="anchored" data-anchor-id="merging-the-data"><span class="header-section-number">10.4</span> Merging the Data</h2>
+<p>The sample period for our analysis covers the time span from January 2003 (2003M1) to December 2015 (2015M12). This period provides a comprehensive view of the relationship between weather-driven agricultural losses and the selected economic indicators in Peru.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>df_var <span class="ot">&lt;-</span> </span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  df_macro <span class="sc">|&gt;</span> </span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    w_df,</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="st">"date"</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">w =</span> w_dt,</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">q =</span> ya</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>variable_names <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Agricultural losses"</span> <span class="ot">=</span> <span class="st">"w"</span>,</span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Real exchange rate"</span> <span class="ot">=</span> <span class="st">"rer_dt_sa"</span>,</span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Food inflation rate (pp)"</span> <span class="ot">=</span> <span class="st">"pia"</span>,</span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Inflation rate (pp)"</span> <span class="ot">=</span> <span class="st">"pi"</span>,</span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Exports (pp)"</span> <span class="ot">=</span> <span class="st">"x"</span>,</span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Agricultural output (pp)"</span> <span class="ot">=</span> <span class="st">"q"</span>,</span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>  <span class="st">"GDP (pp)"</span> <span class="ot">=</span> <span class="st">"y"</span>,</span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Interest rate (pp)"</span> <span class="ot">=</span> <span class="st">"r"</span></span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let us add labels to the new columns:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>df_var <span class="ot">&lt;-</span> </span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  df_var <span class="sc">|&gt;</span>  </span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  labelled<span class="sc">::</span><span class="fu">set_variable_labels</span>(</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">w =</span> <span class="st">"Agricultural losses"</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let us divide the all the values (except exports) by 100:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>df_var <span class="ot">&lt;-</span> </span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  df_var <span class="sc">|&gt;</span>  </span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  labelled<span class="sc">::</span><span class="fu">set_variable_labels</span>(</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">w =</span> <span class="st">"Agricultural losses"</span>,</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">q =</span> <span class="st">"Agricultural output (pp)"</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">w =</span> w <span class="sc">/</span> <span class="dv">100</span>, </span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">rer_dt_sa =</span> rer_dt_sa <span class="sc">/</span> <span class="dv">100</span>, </span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">pi =</span> pi <span class="sc">/</span> <span class="dv">100</span>, </span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">pia =</span> pia <span class="sc">/</span> <span class="dv">100</span>, </span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># x</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">q =</span> q <span class="sc">/</span> <span class="dv">100</span>, </span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> y <span class="sc">/</span> <span class="dv">100</span>, </span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">r =</span> r <span class="sc">/</span> <span class="dv">100</span></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Figure <a href="robustness-ag-fluctuations_chirps.html#fig-series-var" class="quarto-xref">Figure&nbsp;<span>17.1</span></a> displays the time series data for the variables included in the vector <span class="math inline">\(Y\)</span>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> df_var <span class="sc">|&gt;</span> </span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>      <span class="fu">filter</span>(date <span class="sc">&gt;=</span> <span class="st">"2003-01-01"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>      <span class="fu">select</span>(date, w, rer_dt_sa, pia, pi, x, q, y, r) <span class="sc">|&gt;</span> </span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">pivot_longer</span>(<span class="at">cols =</span> <span class="sc">-</span>date) <span class="sc">|&gt;</span> </span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">name =</span> <span class="fu">factor</span>(</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>          name,</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>          <span class="at">levels =</span> variable_names,</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>          <span class="at">labels =</span> <span class="fu">names</span>(variable_names)</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>      ),</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> date, <span class="at">y =</span> value)</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>name, <span class="at">scales =</span> <span class="st">"free_y"</span>) <span class="sc">+</span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_paper</span>() <span class="sc">+</span></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="cn">NULL</span>, <span class="at">y =</span> <span class="cn">NULL</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div id="fig-series-var" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-series-var-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ag-fluctuations_piscop_files/figure-html/fig-series-var-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-series-var-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;10.1: Time Series of Endogenous Variables for Vector Autoregression (VAR) Analysis in Peru (2003-2015)
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Before proceeding to the estimation, there is one final step, which involves converting the data into the <code>ts</code> format.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>start_date <span class="ot">&lt;-</span> <span class="st">"2003-01-01"</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>df_var_ts <span class="ot">&lt;-</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  df_var <span class="sc">|&gt;</span> </span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date <span class="sc">&gt;=</span> start_date) <span class="sc">|&gt;</span> </span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    w, rer_dt_sa, pia, pi, x, q, y, r</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ts</span>(<span class="at">start =</span> <span class="fu">c</span>(<span class="fu">year</span>(start_date), <span class="fu">month</span>(start_date)), <span class="at">freq =</span> <span class="dv">12</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="estimation" class="level2" data-number="10.5">
+<h2 data-number="10.5" class="anchored" data-anchor-id="estimation"><span class="header-section-number">10.5</span> Estimation</h2>
+<p>We estimate a VAR(p) model with a constant term but no trend. Let us look how many lags we should use, using the automatic selection method provided by the <code class="sourceCode r"><span class="fu">VARselect</span>()</code> function from {vars}.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>info_var_estim <span class="ot">&lt;-</span> vars<span class="sc">::</span><span class="fu">VARselect</span>(<span class="at">y =</span> df_var_ts, <span class="at">type =</span> <span class="st">"const"</span>, <span class="at">lag.max =</span> <span class="dv">6</span>)</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>info_var_estim</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$selection
+AIC(n)  HQ(n)  SC(n) FPE(n) 
+     2      1      1      2 
+
+$criteria
+                   1             2             3             4             5
+AIC(n) -7.720444e+01 -7.741493e+01 -7.702973e+01 -7.669223e+01 -7.650309e+01
+HQ(n)  -7.661734e+01 -7.630596e+01 -7.539890e+01 -7.453952e+01 -7.382852e+01
+SC(n)  -7.575933e+01 -7.468529e+01 -7.301555e+01 -7.139351e+01 -6.991984e+01
+FPE(n)  2.958282e-34  2.412802e-34  3.608431e-34  5.228713e-34  6.678365e-34
+                   6
+AIC(n) -7.654810e+01
+HQ(n)  -7.335167e+01
+SC(n)  -6.868031e+01
+FPE(n)  6.949015e-34</code></pre>
+</div>
+</div>
+<section id="results" class="level3" data-number="10.5.1">
+<h3 data-number="10.5.1" class="anchored" data-anchor-id="results"><span class="header-section-number">10.5.1</span> Results</h3>
+<p>Let us estimate a VAR(2) model with a constant term but no trend.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>var_l1 <span class="ot">&lt;-</span> vars<span class="sc">::</span><span class="fu">VAR</span>(<span class="at">y =</span> df_var_ts, <span class="at">p =</span> <span class="dv">2</span>, <span class="at">type =</span> <span class="st">"const"</span>)</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(var_l1)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+VAR Estimation Results:
+========================= 
+Endogenous variables: w, rer_dt_sa, pia, pi, x, q, y, r 
+Deterministic variables: const 
+Sample size: 154 
+Log Likelihood: 4342.644 
+Roots of the characteristic polynomial:
+0.8901 0.8901 0.8293 0.8293 0.5375 0.5375 0.4283 0.4013 0.4013 0.377 0.377 0.2778 0.2762 0.2762 0.2703 0.2703
+Call:
+vars::VAR(y = df_var_ts, p = 2, type = "const")
+
+
+Estimation results for equation w: 
+================================== 
+w = w.l1 + rer_dt_sa.l1 + pia.l1 + pi.l1 + x.l1 + q.l1 + y.l1 + r.l1 + w.l2 + rer_dt_sa.l2 + pia.l2 + pi.l2 + x.l2 + q.l2 + y.l2 + r.l2 + const 
+
+              Estimate Std. Error t value Pr(&gt;|t|)    
+w.l1          1.267638   0.078368  16.175  &lt; 2e-16 ***
+rer_dt_sa.l1  0.068611   0.062152   1.104   0.2716    
+pia.l1       -0.059921   0.254887  -0.235   0.8145    
+pi.l1         0.365242   0.529096   0.690   0.4912    
+x.l1         -0.006021   0.007015  -0.858   0.3923    
+q.l1          0.034348   0.026556   1.293   0.1980    
+y.l1         -0.151286   0.062832  -2.408   0.0174 *  
+r.l1          0.495312   0.313629   1.579   0.1166    
+w.l2         -0.448714   0.079797  -5.623 1.01e-07 ***
+rer_dt_sa.l2 -0.143152   0.064470  -2.220   0.0280 *  
+pia.l2       -0.328037   0.253830  -1.292   0.1984    
+pi.l2         0.374000   0.521350   0.717   0.4744    
+x.l2         -0.006520   0.006740  -0.967   0.3351    
+q.l2         -0.037625   0.026388  -1.426   0.1562    
+y.l2          0.012412   0.064949   0.191   0.8487    
+r.l2         -0.607335   0.306618  -1.981   0.0496 *  
+const         0.016888   0.009983   1.692   0.0930 .  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Residual standard error: 0.007158 on 137 degrees of freedom
+Multiple R-Squared: 0.9002, Adjusted R-squared: 0.8886 
+F-statistic: 77.25 on 16 and 137 DF,  p-value: &lt; 2.2e-16 
+
+
+Estimation results for equation rer_dt_sa: 
+========================================== 
+rer_dt_sa = w.l1 + rer_dt_sa.l1 + pia.l1 + pi.l1 + x.l1 + q.l1 + y.l1 + r.l1 + w.l2 + rer_dt_sa.l2 + pia.l2 + pi.l2 + x.l2 + q.l2 + y.l2 + r.l2 + const 
+
+              Estimate Std. Error t value Pr(&gt;|t|)    
+w.l1         -0.128434   0.104940  -1.224   0.2231    
+rer_dt_sa.l1  1.014179   0.083226  12.186   &lt;2e-16 ***
+pia.l1        0.429770   0.341311   1.259   0.2101    
+pi.l1        -0.950152   0.708494  -1.341   0.1821    
+x.l1          0.013879   0.009394   1.478   0.1418    
+q.l1         -0.016263   0.035560  -0.457   0.6482    
+y.l1          0.092633   0.084136   1.101   0.2728    
+r.l1         -0.383389   0.419970  -0.913   0.3629    
+w.l2          0.219431   0.106853   2.054   0.0419 *  
+rer_dt_sa.l2 -0.188915   0.086329  -2.188   0.0303 *  
+pia.l2        0.043780   0.339895   0.129   0.8977    
+pi.l2         0.213844   0.698122   0.306   0.7598    
+x.l2         -0.014129   0.009025  -1.566   0.1198    
+q.l2         -0.003499   0.035336  -0.099   0.9213    
+y.l2         -0.005852   0.086971  -0.067   0.9465    
+r.l2          0.429207   0.410582   1.045   0.2977    
+const        -0.001024   0.013368  -0.077   0.9391    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Residual standard error: 0.009585 on 137 degrees of freedom
+Multiple R-Squared: 0.782,  Adjusted R-squared: 0.7565 
+F-statistic: 30.71 on 16 and 137 DF,  p-value: &lt; 2.2e-16 
+
+
+Estimation results for equation pia: 
+==================================== 
+pia = w.l1 + rer_dt_sa.l1 + pia.l1 + pi.l1 + x.l1 + q.l1 + y.l1 + r.l1 + w.l2 + rer_dt_sa.l2 + pia.l2 + pi.l2 + x.l2 + q.l2 + y.l2 + r.l2 + const 
+
+               Estimate Std. Error t value Pr(&gt;|t|)  
+w.l1          0.0052509  0.0493833   0.106   0.9155  
+rer_dt_sa.l1  0.0580618  0.0391649   1.482   0.1405  
+pia.l1        0.1803229  0.1606159   1.123   0.2635  
+pi.l1         0.0866057  0.3334069   0.260   0.7954  
+x.l1         -0.0051089  0.0044205  -1.156   0.2498  
+q.l1         -0.0184108  0.0167340  -1.100   0.2732  
+y.l1          0.0069203  0.0395932   0.175   0.8615  
+r.l1         -0.0621598  0.1976318  -0.315   0.7536  
+w.l2         -0.0188948  0.0502835  -0.376   0.7077  
+rer_dt_sa.l2 -0.0074583  0.0406251  -0.184   0.8546  
+pia.l2       -0.0159533  0.1599494  -0.100   0.9207  
+pi.l2         0.0492539  0.3285258   0.150   0.8810  
+x.l2          0.0024291  0.0042471   0.572   0.5683  
+q.l2          0.0004987  0.0166285   0.030   0.9761  
+y.l2          0.0821621  0.0409271   2.008   0.0467 *
+r.l2          0.0274411  0.1932138   0.142   0.8873  
+const         0.0065104  0.0062906   1.035   0.3025  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Residual standard error: 0.00451 on 137 degrees of freedom
+Multiple R-Squared: 0.1951, Adjusted R-squared: 0.1011 
+F-statistic: 2.075 on 16 and 137 DF,  p-value: 0.01265 
+
+
+Estimation results for equation pi: 
+=================================== 
+pi = w.l1 + rer_dt_sa.l1 + pia.l1 + pi.l1 + x.l1 + q.l1 + y.l1 + r.l1 + w.l2 + rer_dt_sa.l2 + pia.l2 + pi.l2 + x.l2 + q.l2 + y.l2 + r.l2 + const 
+
+               Estimate Std. Error t value Pr(&gt;|t|)  
+w.l1          0.0097926  0.0239830   0.408    0.684  
+rer_dt_sa.l1  0.0455393  0.0190204   2.394    0.018 *
+pia.l1       -0.0273362  0.0780032  -0.350    0.727  
+pi.l1         0.2660423  0.1619191   1.643    0.103  
+x.l1         -0.0018619  0.0021468  -0.867    0.387  
+q.l1         -0.0122134  0.0081268  -1.503    0.135  
+y.l1          0.0265333  0.0192284   1.380    0.170  
+r.l1         -0.0001969  0.0959799  -0.002    0.998  
+w.l2         -0.0217587  0.0244202  -0.891    0.374  
+rer_dt_sa.l2 -0.0161181  0.0197296  -0.817    0.415  
+pia.l2        0.0124399  0.0776795   0.160    0.873  
+pi.l2        -0.0370116  0.1595486  -0.232    0.817  
+x.l2          0.0009803  0.0020626   0.475    0.635  
+q.l2         -0.0007480  0.0080756  -0.093    0.926  
+y.l2          0.0362947  0.0198762   1.826    0.070 .
+r.l2         -0.0213335  0.0938343  -0.227    0.820  
+const         0.0036878  0.0030550   1.207    0.229  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Residual standard error: 0.002191 on 137 degrees of freedom
+Multiple R-Squared:  0.28,  Adjusted R-squared: 0.1959 
+F-statistic:  3.33 on 16 and 137 DF,  p-value: 6.3e-05 
+
+
+Estimation results for equation x: 
+================================== 
+x = w.l1 + rer_dt_sa.l1 + pia.l1 + pi.l1 + x.l1 + q.l1 + y.l1 + r.l1 + w.l2 + rer_dt_sa.l2 + pia.l2 + pi.l2 + x.l2 + q.l2 + y.l2 + r.l2 + const 
+
+             Estimate Std. Error t value Pr(&gt;|t|)    
+w.l1         -0.72984    0.96318  -0.758   0.4499    
+rer_dt_sa.l1 -0.29342    0.76388  -0.384   0.7015    
+pia.l1       -1.33995    3.13267  -0.428   0.6695    
+pi.l1         5.28399    6.50280   0.813   0.4179    
+x.l1          0.14367    0.08622   1.666   0.0979 .  
+q.l1         -0.46358    0.32638  -1.420   0.1578    
+y.l1          1.06544    0.77223   1.380   0.1699    
+r.l1         -0.59428    3.85463  -0.154   0.8777    
+w.l2         -0.28340    0.98073  -0.289   0.7730    
+rer_dt_sa.l2  0.13202    0.79236   0.167   0.8679    
+pia.l2       -1.66568    3.11967  -0.534   0.5943    
+pi.l2         4.34184    6.40760   0.678   0.4992    
+x.l2          0.14425    0.08284   1.741   0.0839 .  
+q.l2         -0.10515    0.32432  -0.324   0.7463    
+y.l2          0.24162    0.79825   0.303   0.7626    
+r.l2         -1.29717    3.76846  -0.344   0.7312    
+const         0.79948    0.12269   6.516 1.27e-09 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Residual standard error: 0.08797 on 137 degrees of freedom
+Multiple R-Squared: 0.2248, Adjusted R-squared: 0.1343 
+F-statistic: 2.484 on 16 and 137 DF,  p-value: 0.002373 
+
+
+Estimation results for equation q: 
+================================== 
+q = w.l1 + rer_dt_sa.l1 + pia.l1 + pi.l1 + x.l1 + q.l1 + y.l1 + r.l1 + w.l2 + rer_dt_sa.l2 + pia.l2 + pi.l2 + x.l2 + q.l2 + y.l2 + r.l2 + const 
+
+              Estimate Std. Error t value Pr(&gt;|t|)  
+w.l1         -0.362386   0.259425  -1.397    0.165  
+rer_dt_sa.l1 -0.178436   0.205745  -0.867    0.387  
+pia.l1       -0.407730   0.843764  -0.483    0.630  
+pi.l1        -0.986757   1.751487  -0.563    0.574  
+x.l1         -0.004487   0.023222  -0.193    0.847  
+q.l1          0.197841   0.087909   2.251    0.026 *
+y.l1          0.095053   0.207995   0.457    0.648  
+r.l1          0.790868   1.038220   0.762    0.448  
+w.l2          0.060895   0.264154   0.231    0.818  
+rer_dt_sa.l2  0.015055   0.213416   0.071    0.944  
+pia.l2       -1.164964   0.840263  -1.386    0.168  
+pi.l2         1.311820   1.725846   0.760    0.448  
+x.l2         -0.023495   0.022312  -1.053    0.294  
+q.l2         -0.127431   0.087354  -1.459    0.147  
+y.l2         -0.044173   0.215002  -0.205    0.838  
+r.l2         -0.436027   1.015011  -0.430    0.668  
+const         0.019718   0.033046   0.597    0.552  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Residual standard error: 0.0237 on 137 degrees of freedom
+Multiple R-Squared: 0.2203, Adjusted R-squared: 0.1292 
+F-statistic: 2.419 on 16 and 137 DF,  p-value: 0.00311 
+
+
+Estimation results for equation y: 
+================================== 
+y = w.l1 + rer_dt_sa.l1 + pia.l1 + pi.l1 + x.l1 + q.l1 + y.l1 + r.l1 + w.l2 + rer_dt_sa.l2 + pia.l2 + pi.l2 + x.l2 + q.l2 + y.l2 + r.l2 + const 
+
+              Estimate Std. Error t value Pr(&gt;|t|)    
+w.l1         -0.003199   0.109057  -0.029  0.97664    
+rer_dt_sa.l1 -0.038732   0.086491  -0.448  0.65499    
+pia.l1        0.211133   0.354701   0.595  0.55266    
+pi.l1         0.598298   0.736289   0.813  0.41787    
+x.l1         -0.004104   0.009762  -0.420  0.67487    
+q.l1          0.034623   0.036955   0.937  0.35047    
+y.l1          0.415904   0.087437   4.757 4.93e-06 ***
+r.l1          0.324613   0.436446   0.744  0.45829    
+w.l2          0.051638   0.111045   0.465  0.64265    
+rer_dt_sa.l2  0.003376   0.089716   0.038  0.97004    
+pia.l2       -0.210002   0.353229  -0.595  0.55315    
+pi.l2         0.202028   0.725510   0.278  0.78108    
+x.l2          0.012840   0.009379   1.369  0.17324    
+q.l2          0.010711   0.036722   0.292  0.77096    
+y.l2          0.250580   0.090383   2.772  0.00634 ** 
+r.l2         -0.302527   0.426689  -0.709  0.47952    
+const        -0.012004   0.013892  -0.864  0.38907    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Residual standard error: 0.009961 on 137 degrees of freedom
+Multiple R-Squared: 0.5263, Adjusted R-squared: 0.471 
+F-statistic: 9.513 on 16 and 137 DF,  p-value: 1.514e-15 
+
+
+Estimation results for equation r: 
+================================== 
+r = w.l1 + rer_dt_sa.l1 + pia.l1 + pi.l1 + x.l1 + q.l1 + y.l1 + r.l1 + w.l2 + rer_dt_sa.l2 + pia.l2 + pi.l2 + x.l2 + q.l2 + y.l2 + r.l2 + const 
+
+               Estimate Std. Error t value Pr(&gt;|t|)    
+w.l1          6.421e-03  1.833e-02   0.350   0.7266    
+rer_dt_sa.l1  8.568e-03  1.454e-02   0.589   0.5565    
+pia.l1        1.247e-03  5.961e-02   0.021   0.9833    
+pi.l1         3.173e-02  1.237e-01   0.256   0.7980    
+x.l1         -1.024e-05  1.641e-03  -0.006   0.9950    
+q.l1          2.224e-03  6.211e-03   0.358   0.7209    
+y.l1          1.710e-02  1.469e-02   1.164   0.2466    
+r.l1          1.452e+00  7.335e-02  19.795  &lt; 2e-16 ***
+w.l2         -4.633e-04  1.866e-02  -0.025   0.9802    
+rer_dt_sa.l2 -8.438e-03  1.508e-02  -0.560   0.5767    
+pia.l2       -7.185e-03  5.936e-02  -0.121   0.9038    
+pi.l2         1.998e-01  1.219e-01   1.639   0.1035    
+x.l2          5.996e-04  1.576e-03   0.380   0.7042    
+q.l2         -4.738e-03  6.172e-03  -0.768   0.4440    
+y.l2          2.734e-02  1.519e-02   1.800   0.0741 .  
+r.l2         -5.101e-01  7.171e-02  -7.114 5.72e-11 ***
+const         1.049e-03  2.335e-03   0.449   0.6540    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Residual standard error: 0.001674 on 137 degrees of freedom
+Multiple R-Squared: 0.9819, Adjusted R-squared: 0.9798 
+F-statistic: 463.8 on 16 and 137 DF,  p-value: &lt; 2.2e-16 
+
+
+
+Covariance matrix of residuals:
+                   w  rer_dt_sa        pia         pi          x          q
+w          5.124e-05 -6.385e-06  1.420e-06 -1.763e-07  2.399e-05  1.197e-05
+rer_dt_sa -6.385e-06  9.187e-05 -3.941e-06 -2.456e-06 -3.212e-05  1.313e-05
+pia        1.420e-06 -3.941e-06  2.034e-05  8.375e-06 -2.967e-05  3.334e-06
+pi        -1.763e-07 -2.456e-06  8.375e-06  4.798e-06 -2.648e-05  3.513e-06
+x          2.399e-05 -3.212e-05 -2.967e-05 -2.648e-05  7.739e-03 -3.289e-04
+q          1.197e-05  1.313e-05  3.334e-06  3.513e-06 -3.289e-04  5.615e-04
+y         -1.998e-06  6.141e-06  1.200e-06  1.972e-06 -5.098e-05  6.238e-05
+r          4.063e-07  5.816e-07  1.953e-06  8.293e-07 -9.949e-06  1.473e-06
+                   y          r
+w         -1.998e-06  4.063e-07
+rer_dt_sa  6.141e-06  5.816e-07
+pia        1.200e-06  1.953e-06
+pi         1.972e-06  8.293e-07
+x         -5.098e-05 -9.949e-06
+q          6.238e-05  1.473e-06
+y          9.922e-05  3.801e-06
+r          3.801e-06  2.802e-06
+
+Correlation matrix of residuals:
+                 w rer_dt_sa      pia       pi        x        q        y
+w          1.00000  -0.09307  0.04399 -0.01124  0.03809  0.07060 -0.02802
+rer_dt_sa -0.09307   1.00000 -0.09116 -0.11698 -0.03809  0.05781  0.06432
+pia        0.04399  -0.09116  1.00000  0.84767 -0.07477  0.03119  0.02671
+pi        -0.01124  -0.11698  0.84767  1.00000 -0.13741  0.06768  0.09036
+x          0.03809  -0.03809 -0.07477 -0.13741  1.00000 -0.15780 -0.05818
+q          0.07060   0.05781  0.03119  0.06768 -0.15780  1.00000  0.26430
+y         -0.02802   0.06432  0.02671  0.09036 -0.05818  0.26430  1.00000
+r          0.03391   0.03625  0.25864  0.22616 -0.06755  0.03713  0.22796
+                 r
+w          0.03391
+rer_dt_sa  0.03625
+pia        0.25864
+pi         0.22616
+x         -0.06755
+q          0.03713
+y          0.22796
+r          1.00000</code></pre>
+</div>
+</div>
+</section>
+<section id="restricted-var" class="level3" data-number="10.5.2">
+<h3 data-number="10.5.2" class="anchored" data-anchor-id="restricted-var"><span class="header-section-number">10.5.2</span> Restricted VAR</h3>
+<p>We impose some restrictions on the VAR:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="fu">diag</span>(<span class="dv">1</span>, <span class="dv">8</span>)</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>a[<span class="fu">lower.tri</span>(a)] <span class="ot">&lt;-</span> <span class="cn">NA</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>a</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8]
+[1,]    1    0    0    0    0    0    0    0
+[2,]   NA    1    0    0    0    0    0    0
+[3,]   NA   NA    1    0    0    0    0    0
+[4,]   NA   NA   NA    1    0    0    0    0
+[5,]   NA   NA   NA   NA    1    0    0    0
+[6,]   NA   NA   NA   NA   NA    1    0    0
+[7,]   NA   NA   NA   NA   NA   NA    1    0
+[8,]   NA   NA   NA   NA   NA   NA   NA    1</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>svar_a <span class="ot">&lt;-</span> vars<span class="sc">::</span><span class="fu">SVAR</span>(var_l1, <span class="at">Amat =</span> a, <span class="at">max.iter =</span> <span class="dv">500</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in vars::SVAR(var_l1, Amat = a, max.iter = 500): Convergence not
+achieved after 500 iterations. Convergence value: 8.95155527022712e-05 .</code></pre>
+</div>
+</div>
+<p>The matrix of the estimated coefficients:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>svar_a<span class="sc">$</span>A</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                   w  rer_dt_sa        pia         pi           x          q
+w         1.00000000 0.00000000 0.00000000 0.00000000 0.000000000 0.00000000
+rer_dt_sa 0.10062174 1.00000000 0.00000000 0.00000000 0.000000000 0.00000000
+pia       0.09683520 0.09746244 1.00000000 0.00000000 0.000000000 0.00000000
+pi        0.09696978 0.09646253 0.09446819 1.00000000 0.000000000 0.00000000
+x         0.08956979 0.11302010 0.11451975 0.11371938 1.000000000 0.00000000
+q         0.08405673 0.08343476 0.09004483 0.09074844 0.043870980 1.00000000
+y         0.08370154 0.07915368 0.08356944 0.08389639 0.010703005 0.04580249
+r         0.08307618 0.08163940 0.08355461 0.08470402 0.007045767 0.06823200
+                  y r
+w         0.0000000 0
+rer_dt_sa 0.0000000 0
+pia       0.0000000 0
+pi        0.0000000 0
+x         0.0000000 0
+q         0.0000000 0
+y         1.0000000 0
+r         0.0839859 1</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(svar_a, df_var, <span class="at">file =</span> <span class="st">"../R/output/var_objects_piscop.rda"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="impulse-response-functions" class="level3" data-number="10.5.3">
+<h3 data-number="10.5.3" class="anchored" data-anchor-id="impulse-response-functions"><span class="header-section-number">10.5.3</span> Impulse Response Functions</h3>
+<p>Let us focus on the impulse to the weather aggregate cost equation, with 95% confidence bootstrapped error bands (500 runs).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>impulse_name <span class="ot">&lt;-</span> <span class="st">"w"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>nb_runs <span class="ot">&lt;-</span> <span class="dv">500</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>irfs_95 <span class="ot">&lt;-</span> vars<span class="sc">::</span><span class="fu">irf</span>(</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>  svar_a, <span class="at">impulse =</span> impulse_name, <span class="at">boot =</span> <span class="cn">TRUE</span>, <span class="at">ci =</span> .<span class="dv">95</span>, </span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">n.ahead =</span> <span class="dv">20</span>, <span class="at">runs =</span> nb_runs</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>And with 68% confidence bootstrapped error bands (500 runs, again).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>irfs_68 <span class="ot">&lt;-</span> vars<span class="sc">::</span><span class="fu">irf</span>(</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>  svar_a, <span class="at">impulse =</span> impulse_name, <span class="at">boot =</span> <span class="cn">TRUE</span>, <span class="at">ci =</span> .<span class="dv">68</span>, </span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">n.ahead =</span> <span class="dv">20</span>, <span class="at">runs =</span> nb_runs</span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let us save the results:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(irfs_95, <span class="at">file =</span> <span class="st">"../R/output/irfs_95_piscop.rda"</span>)</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(irfs_68, <span class="at">file =</span> <span class="st">"../R/output/irfs_68_piscop.rda"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>levels <span class="ot">&lt;-</span> variable_names</span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>labels <span class="ot">&lt;-</span> <span class="fu">names</span>(variable_names)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now, we can plot the resulting IRFs. Let us prepare the data for the response:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>df_irfs <span class="ot">&lt;-</span> </span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>  irfs_95<span class="sc">$</span>irf[[impulse_name]] <span class="sc">|&gt;</span> </span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as_tibble</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">horizon =</span> <span class="fu">row_number</span>()) <span class="sc">|&gt;</span> </span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(<span class="at">cols =</span> <span class="sc">-</span>horizon) <span class="sc">|&gt;</span> </span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">impulse =</span> <span class="sc">!!</span>impulse_name)</span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>df_irfs <span class="ot">&lt;-</span> </span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a>  df_irfs <span class="sc">|&gt;</span> </span>
+<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb45-11"><a href="#cb45-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">name =</span> <span class="fu">factor</span>(</span>
+<span id="cb45-12"><a href="#cb45-12" aria-hidden="true" tabindex="-1"></a>      name,</span>
+<span id="cb45-13"><a href="#cb45-13" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="sc">!!</span>levels,</span>
+<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> <span class="sc">!!</span>labels</span>
+<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The error bands:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>df_irfs_ci <span class="ot">&lt;-</span> </span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map</span>(</span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">.x =</span> <span class="fu">list</span>(<span class="st">`</span><span class="at">95</span><span class="st">`</span> <span class="ot">=</span> irfs_95, <span class="st">`</span><span class="at">68</span><span class="st">`</span> <span class="ot">=</span> irfs_68),</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">.f =</span> <span class="cf">function</span>(irf_lvl) {</span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">map</span>(</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">.x =</span> <span class="fu">list</span>(</span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>          <span class="at">lower =</span> irf_lvl<span class="sc">$</span>Lower[[impulse_name]], </span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a>          <span class="at">mean =</span> irf_lvl<span class="sc">$</span>irf[[impulse_name]],</span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a>          <span class="at">upper =</span> irf_lvl<span class="sc">$</span>Upper[[impulse_name]]),</span>
+<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">.f =</span> <span class="sc">~</span> .x <span class="sc">|&gt;</span> </span>
+<span id="cb46-11"><a href="#cb46-11" aria-hidden="true" tabindex="-1"></a>          <span class="fu">as_tibble</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb46-12"><a href="#cb46-12" aria-hidden="true" tabindex="-1"></a>          <span class="fu">mutate</span>(<span class="at">horizon =</span> <span class="fu">row_number</span>()) <span class="sc">|&gt;</span> </span>
+<span id="cb46-13"><a href="#cb46-13" aria-hidden="true" tabindex="-1"></a>          <span class="fu">pivot_longer</span>(<span class="at">cols =</span> <span class="sc">-</span>horizon, <span class="at">values_to =</span> <span class="st">"bound"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb46-14"><a href="#cb46-14" aria-hidden="true" tabindex="-1"></a>          <span class="fu">mutate</span>(<span class="at">impulse =</span> <span class="sc">!!</span>impulse_name)</span>
+<span id="cb46-15"><a href="#cb46-15" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">|&gt;</span> </span>
+<span id="cb46-16"><a href="#cb46-16" aria-hidden="true" tabindex="-1"></a>        <span class="fu">list_rbind</span>(<span class="at">names_to =</span> <span class="st">"bound_type"</span>)</span>
+<span id="cb46-17"><a href="#cb46-17" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb46-18"><a href="#cb46-18" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb46-19"><a href="#cb46-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list_rbind</span>(<span class="at">names_to =</span> <span class="st">"level"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb46-20"><a href="#cb46-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(<span class="at">names_from =</span> bound_type, <span class="at">values_from =</span> bound)</span>
+<span id="cb46-21"><a href="#cb46-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-22"><a href="#cb46-22" aria-hidden="true" tabindex="-1"></a>df_irfs_ci <span class="ot">&lt;-</span> </span>
+<span id="cb46-23"><a href="#cb46-23" aria-hidden="true" tabindex="-1"></a>  df_irfs_ci <span class="sc">|&gt;</span> </span>
+<span id="cb46-24"><a href="#cb46-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb46-25"><a href="#cb46-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">name =</span> <span class="fu">factor</span>(</span>
+<span id="cb46-26"><a href="#cb46-26" aria-hidden="true" tabindex="-1"></a>      name,</span>
+<span id="cb46-27"><a href="#cb46-27" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="sc">!!</span>levels,</span>
+<span id="cb46-28"><a href="#cb46-28" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> <span class="sc">!!</span>labels),</span>
+<span id="cb46-29"><a href="#cb46-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">level =</span> <span class="fu">factor</span>(level, <span class="at">levels =</span> <span class="fu">c</span>(<span class="dv">68</span>, <span class="dv">95</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">"68%"</span>, <span class="st">"95%"</span>))</span>
+<span id="cb46-30"><a href="#cb46-30" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>And lastly, the graph.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_ribbon</span>(</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> df_irfs_ci,</span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> horizon,</span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">ymin =</span> lower, <span class="at">ymax =</span> upper,</span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">fill =</span> level),</span>
+<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> .<span class="dv">3</span></span>
+<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb47-10"><a href="#cb47-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(</span>
+<span id="cb47-11"><a href="#cb47-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> df_irfs_ci,</span>
+<span id="cb47-12"><a href="#cb47-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> horizon, <span class="at">y =</span> mean),</span>
+<span id="cb47-13"><a href="#cb47-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">colour =</span> <span class="st">"#0072B2"</span></span>
+<span id="cb47-14"><a href="#cb47-14" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb47-15"><a href="#cb47-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>, <span class="at">colour =</span> <span class="st">"#444444"</span>) <span class="sc">+</span></span>
+<span id="cb47-16"><a href="#cb47-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Horizon"</span>, <span class="at">y =</span> <span class="cn">NULL</span>) <span class="sc">+</span></span>
+<span id="cb47-17"><a href="#cb47-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb47-18"><a href="#cb47-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">"C.I. level"</span>, </span>
+<span id="cb47-19"><a href="#cb47-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"68%"</span> <span class="ot">=</span> <span class="st">"#0072B2"</span>, <span class="st">"95%"</span> <span class="ot">=</span> <span class="st">"#56B4E9"</span>)) <span class="sc">+</span></span>
+<span id="cb47-20"><a href="#cb47-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>name, <span class="at">scales =</span> <span class="st">"free_y"</span>, <span class="at">ncol =</span> <span class="dv">4</span>) <span class="sc">+</span></span>
+<span id="cb47-21"><a href="#cb47-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_paper</span>() <span class="sc">+</span></span>
+<span id="cb47-22"><a href="#cb47-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_cartesian</span>(<span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">20</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div id="fig-var-irfs-w" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-var-irfs-w-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ag-fluctuations_piscop_files/figure-html/fig-var-irfs-w-1.png" class="img-fluid figure-img" width="864">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-var-irfs-w-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;10.2: VAR(2) system response to one standard deviation orthogonal shock to the weather aggregate cost equation
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>The exact figure replication:</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tikzDevice)</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lemon)</span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_ribbon</span>(</span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> df_irfs_ci <span class="sc">|&gt;</span> </span>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">filter</span>(level <span class="sc">==</span> <span class="st">"68%"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(<span class="at">level =</span> <span class="fu">str_replace</span>(level, <span class="st">"</span><span class="sc">\\</span><span class="st">%"</span>, <span class="st">"</span><span class="sc">\\\\</span><span class="st">%"</span>)),</span>
+<span id="cb48-9"><a href="#cb48-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> horizon,</span>
+<span id="cb48-10"><a href="#cb48-10" aria-hidden="true" tabindex="-1"></a>                  <span class="at">ymin =</span> lower, <span class="at">ymax =</span> upper,</span>
+<span id="cb48-11"><a href="#cb48-11" aria-hidden="true" tabindex="-1"></a>                  <span class="at">fill =</span> level),</span>
+<span id="cb48-12"><a href="#cb48-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> .<span class="dv">2</span></span>
+<span id="cb48-13"><a href="#cb48-13" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb48-14"><a href="#cb48-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(</span>
+<span id="cb48-15"><a href="#cb48-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> df_irfs,</span>
+<span id="cb48-16"><a href="#cb48-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> horizon, <span class="at">y =</span> value),</span>
+<span id="cb48-17"><a href="#cb48-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">colour =</span> <span class="st">"#009E73"</span></span>
+<span id="cb48-18"><a href="#cb48-18" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb48-19"><a href="#cb48-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>, <span class="at">colour =</span> <span class="st">"#444444"</span>) <span class="sc">+</span></span>
+<span id="cb48-20"><a href="#cb48-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Horizon"</span>, <span class="at">y =</span> <span class="cn">NULL</span>) <span class="sc">+</span></span>
+<span id="cb48-21"><a href="#cb48-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb48-22"><a href="#cb48-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">"C.I. level"</span>, </span>
+<span id="cb48-23"><a href="#cb48-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"68</span><span class="sc">\\</span><span class="st">%"</span> <span class="ot">=</span> <span class="st">"gray10"</span>, <span class="st">"95</span><span class="sc">\\</span><span class="st">%"</span> <span class="ot">=</span> <span class="st">"gray60"</span>),</span>
+<span id="cb48-24"><a href="#cb48-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">guide =</span> <span class="st">"none"</span>) <span class="sc">+</span></span>
+<span id="cb48-25"><a href="#cb48-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_rep_wrap</span>(<span class="sc">~</span>name, <span class="at">scales =</span> <span class="st">"free_y"</span>, <span class="at">repeat.tick.labels =</span> <span class="cn">TRUE</span>, <span class="at">ncol =</span> <span class="dv">4</span>) <span class="sc">+</span></span>
+<span id="cb48-26"><a href="#cb48-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_paper</span>() <span class="sc">+</span></span>
+<span id="cb48-27"><a href="#cb48-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_cartesian</span>(<span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">20</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div id="fig-var-irfs-w-repl" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-var-irfs-w-repl-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ag-fluctuations_piscop_files/figure-html/fig-var-irfs-w-repl-1.png" class="img-fluid figure-img" width="864">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-var-irfs-w-repl-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;10.3: VAR(2) system response to one standard deviation orthogonal shock to the weather aggregate cost equation. The gray bands depict the 68% confidence intervals.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="estimation-with-local-projections" class="level2" data-number="10.6">
+<h2 data-number="10.6" class="anchored" data-anchor-id="estimation-with-local-projections"><span class="header-section-number">10.6</span> Estimation with Local Projections</h2>
+<p>We can also estimate the propagation of the shock using local projections rather than VAR.</p>
+<p>Let us build the table with the data:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>df_lp <span class="ot">&lt;-</span> </span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>  df_var <span class="sc">|&gt;</span> </span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date <span class="sc">&gt;=</span> start_date) <span class="sc">|&gt;</span> </span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>    w, rer_dt_sa, pia, pi, x, q, y, r</span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The linear impulse response functions can be estimated using the <code class="sourceCode r"><span class="fu">lp_lin</span>()</code> function from {lpirfs}.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lpirfs)</span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="co"># With 95% conf. int.</span></span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a>results_lin_95 <span class="ot">&lt;-</span> <span class="fu">lp_lin</span>(</span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">endog_data     =</span> df_lp,</span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">lags_endog_lin =</span> <span class="dv">2</span>,<span class="co"># 2 lags</span></span>
+<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">trend          =</span> <span class="dv">0</span>,<span class="co"># no trend</span></span>
+<span id="cb50-7"><a href="#cb50-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">shock_type     =</span> <span class="dv">0</span>,<span class="co"># std dev. shock</span></span>
+<span id="cb50-8"><a href="#cb50-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">confint        =</span> <span class="fl">1.96</span>,</span>
+<span id="cb50-9"><a href="#cb50-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">hor            =</span> <span class="dv">20</span></span>
+<span id="cb50-10"><a href="#cb50-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb50-11"><a href="#cb50-11" aria-hidden="true" tabindex="-1"></a><span class="co"># With 68% conf. int.</span></span>
+<span id="cb50-12"><a href="#cb50-12" aria-hidden="true" tabindex="-1"></a>results_lin_68 <span class="ot">&lt;-</span> <span class="fu">lp_lin</span>(</span>
+<span id="cb50-13"><a href="#cb50-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">endog_data     =</span> df_lp,</span>
+<span id="cb50-14"><a href="#cb50-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">lags_endog_lin =</span> <span class="dv">2</span>,<span class="co"># 2 lags</span></span>
+<span id="cb50-15"><a href="#cb50-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">trend          =</span> <span class="dv">0</span>,<span class="co"># no trend</span></span>
+<span id="cb50-16"><a href="#cb50-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">shock_type     =</span> <span class="dv">0</span>,<span class="co"># std dev. shock</span></span>
+<span id="cb50-17"><a href="#cb50-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">confint        =</span> <span class="dv">1</span>,</span>
+<span id="cb50-18"><a href="#cb50-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">hor            =</span> <span class="dv">20</span></span>
+<span id="cb50-19"><a href="#cb50-19" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>We define a small function, <code class="sourceCode r"><span class="fu">get_irfs</span>()</code>, to format the IRFs from the object returned by <code class="sourceCode r"><span class="fu">lp_lin</span>()</code>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>get_irfs <span class="ot">&lt;-</span> <span class="cf">function</span>(resul_lin) {</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>  irf_lin_mean <span class="ot">&lt;-</span> resul_lin[[<span class="st">"irf_lin_mean"</span>]]</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>  irf_lin_low <span class="ot">&lt;-</span> resul_lin[[<span class="st">"irf_lin_low"</span>]]</span>
+<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a>  irf_lin_up <span class="ot">&lt;-</span> resul_lin[[<span class="st">"irf_lin_up"</span>]]</span>
+<span id="cb51-5"><a href="#cb51-5" aria-hidden="true" tabindex="-1"></a>  specs <span class="ot">&lt;-</span> resul_lin<span class="sc">$</span>specs</span>
+<span id="cb51-6"><a href="#cb51-6" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb51-7"><a href="#cb51-7" aria-hidden="true" tabindex="-1"></a>  irfs_df <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb51-8"><a href="#cb51-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (rr <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>(specs<span class="sc">$</span>endog)) {</span>
+<span id="cb51-9"><a href="#cb51-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> (ss <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>(specs<span class="sc">$</span>endog)) {</span>
+<span id="cb51-10"><a href="#cb51-10" aria-hidden="true" tabindex="-1"></a>      tbl_lin_mean <span class="ot">&lt;-</span> <span class="fu">as.matrix</span>(<span class="fu">t</span>(irf_lin_mean[, <span class="dv">1</span><span class="sc">:</span>specs<span class="sc">$</span>hor, ss]))[, rr]</span>
+<span id="cb51-11"><a href="#cb51-11" aria-hidden="true" tabindex="-1"></a>      tbl_lin_low <span class="ot">&lt;-</span> <span class="fu">as.matrix</span>(<span class="fu">t</span>(irf_lin_low[, <span class="dv">1</span><span class="sc">:</span>specs<span class="sc">$</span>hor, ss]))[, rr]</span>
+<span id="cb51-12"><a href="#cb51-12" aria-hidden="true" tabindex="-1"></a>      tbl_lin_up <span class="ot">&lt;-</span> <span class="fu">as.matrix</span>(<span class="fu">t</span>(irf_lin_up[, <span class="dv">1</span><span class="sc">:</span>specs<span class="sc">$</span>hor, ss]))[, rr]</span>
+<span id="cb51-13"><a href="#cb51-13" aria-hidden="true" tabindex="-1"></a>      tbl_lin <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb51-14"><a href="#cb51-14" aria-hidden="true" tabindex="-1"></a>        <span class="at">horizon =</span> <span class="fu">seq_along</span>(tbl_lin_mean), </span>
+<span id="cb51-15"><a href="#cb51-15" aria-hidden="true" tabindex="-1"></a>        <span class="at">mean =</span> tbl_lin_mean, </span>
+<span id="cb51-16"><a href="#cb51-16" aria-hidden="true" tabindex="-1"></a>        <span class="at">low =</span> tbl_lin_low, </span>
+<span id="cb51-17"><a href="#cb51-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">up =</span> tbl_lin_up,</span>
+<span id="cb51-18"><a href="#cb51-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">shocked =</span> specs<span class="sc">$</span>column_names[ss],</span>
+<span id="cb51-19"><a href="#cb51-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">on =</span> specs<span class="sc">$</span>column_names[rr]</span>
+<span id="cb51-20"><a href="#cb51-20" aria-hidden="true" tabindex="-1"></a>      )</span>
+<span id="cb51-21"><a href="#cb51-21" aria-hidden="true" tabindex="-1"></a>      irfs_df <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(irfs_df, tbl_lin)</span>
+<span id="cb51-22"><a href="#cb51-22" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb51-23"><a href="#cb51-23" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb51-24"><a href="#cb51-24" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb51-25"><a href="#cb51-25" aria-hidden="true" tabindex="-1"></a>  irfs_df <span class="ot">&lt;-</span> </span>
+<span id="cb51-26"><a href="#cb51-26" aria-hidden="true" tabindex="-1"></a>    irfs_df <span class="sc">|&gt;</span></span>
+<span id="cb51-27"><a href="#cb51-27" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb51-28"><a href="#cb51-28" aria-hidden="true" tabindex="-1"></a>      <span class="at">shocked =</span> <span class="fu">factor</span>(shocked, <span class="at">levels =</span> variable_names, <span class="at">labels =</span> <span class="fu">names</span>(variable_names)),</span>
+<span id="cb51-29"><a href="#cb51-29" aria-hidden="true" tabindex="-1"></a>      <span class="at">on =</span> <span class="fu">factor</span>(on, <span class="at">levels =</span> variable_names, <span class="at">labels =</span> <span class="fu">names</span>(variable_names))</span>
+<span id="cb51-30"><a href="#cb51-30" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb51-31"><a href="#cb51-31" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb51-32"><a href="#cb51-32" aria-hidden="true" tabindex="-1"></a>  irfs_df</span>
+<span id="cb51-33"><a href="#cb51-33" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The formatted IRFs:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a>irfs_df <span class="ot">&lt;-</span> </span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">get_irfs</span>(results_lin_95) <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">level =</span> <span class="st">"95%"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bind_rows</span>(</span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">get_irfs</span>(results_lin_68) <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">level =</span> <span class="st">"68%"</span>)</span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>And the figure:</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_ribbon</span>(</span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> irfs_df <span class="sc">|&gt;</span> <span class="fu">filter</span>(shocked <span class="sc">==</span> <span class="st">"Agricultural losses"</span>), </span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(</span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">x =</span> horizon,</span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">ymin =</span> low, <span class="at">ymax =</span> up,</span>
+<span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">fill =</span> level),</span>
+<span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> .<span class="dv">3</span></span>
+<span id="cb53-9"><a href="#cb53-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb53-10"><a href="#cb53-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(</span>
+<span id="cb53-11"><a href="#cb53-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> irfs_df <span class="sc">|&gt;</span> <span class="fu">filter</span>(shocked <span class="sc">==</span> <span class="st">"Agricultural losses"</span>), ,</span>
+<span id="cb53-12"><a href="#cb53-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> horizon, <span class="at">y =</span> mean),</span>
+<span id="cb53-13"><a href="#cb53-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">colour =</span> <span class="st">"#0072B2"</span></span>
+<span id="cb53-14"><a href="#cb53-14" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb53-15"><a href="#cb53-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>, <span class="at">colour =</span> <span class="st">"#444444"</span>) <span class="sc">+</span></span>
+<span id="cb53-16"><a href="#cb53-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Horizon"</span>, <span class="at">y =</span> <span class="cn">NULL</span>) <span class="sc">+</span></span>
+<span id="cb53-17"><a href="#cb53-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb53-18"><a href="#cb53-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">"C.I. level"</span>, </span>
+<span id="cb53-19"><a href="#cb53-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"68%"</span> <span class="ot">=</span> <span class="st">"#0072B2"</span>, <span class="st">"95%"</span> <span class="ot">=</span> <span class="st">"#56B4E9"</span>)) <span class="sc">+</span></span>
+<span id="cb53-20"><a href="#cb53-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>on, <span class="at">scales =</span> <span class="st">"free_y"</span>, <span class="at">ncol =</span> <span class="dv">4</span>) <span class="sc">+</span></span>
+<span id="cb53-21"><a href="#cb53-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_paper</span>() <span class="sc">+</span></span>
+<span id="cb53-22"><a href="#cb53-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_cartesian</span>(<span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">20</span>)) <span class="sc">+</span></span>
+<span id="cb53-23"><a href="#cb53-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span><span class="fu">label_percent</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div id="fig-lp-irfs-w" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-lp-irfs-w-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ag-fluctuations_piscop_files/figure-html/fig-lp-irfs-w-1.png" class="img-fluid figure-img" width="864">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-lp-irfs-w-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;10.4: System response to one standard deviation orthogonal shock to the weather aggregate cost equation. Estimations made with local projections.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>And with the 68% confidence interval only:</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb54"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tikzDevice)</span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lemon)</span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(</span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> irfs_df <span class="sc">|&gt;</span> <span class="fu">filter</span>(shocked <span class="sc">==</span> <span class="st">"Agricultural losses"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">filter</span>(level <span class="sc">==</span> <span class="st">"68%"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb54-6"><a href="#cb54-6" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(<span class="at">level =</span> <span class="fu">str_replace</span>(level, <span class="st">"</span><span class="sc">\\</span><span class="st">%"</span>, <span class="st">"</span><span class="sc">\\\\</span><span class="st">%"</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb54-7"><a href="#cb54-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(</span>
+<span id="cb54-8"><a href="#cb54-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">mean =</span> mean <span class="sc">*</span> <span class="dv">100</span>,</span>
+<span id="cb54-9"><a href="#cb54-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">low =</span> low <span class="sc">*</span> <span class="dv">100</span>,</span>
+<span id="cb54-10"><a href="#cb54-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">up =</span> up <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb54-11"><a href="#cb54-11" aria-hidden="true" tabindex="-1"></a>      )</span>
+<span id="cb54-12"><a href="#cb54-12" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb54-13"><a href="#cb54-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_ribbon</span>(</span>
+<span id="cb54-14"><a href="#cb54-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> horizon,<span class="at">ymin =</span> low, <span class="at">ymax =</span> up, <span class="at">fill =</span> level),</span>
+<span id="cb54-15"><a href="#cb54-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> .<span class="dv">2</span></span>
+<span id="cb54-16"><a href="#cb54-16" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb54-17"><a href="#cb54-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(</span>
+<span id="cb54-18"><a href="#cb54-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> horizon, <span class="at">y =</span> mean),</span>
+<span id="cb54-19"><a href="#cb54-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">colour =</span> <span class="st">"#009E73"</span></span>
+<span id="cb54-20"><a href="#cb54-20" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb54-21"><a href="#cb54-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>, <span class="at">colour =</span> <span class="st">"#444444"</span>) <span class="sc">+</span></span>
+<span id="cb54-22"><a href="#cb54-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Horizon"</span>, <span class="at">y =</span> <span class="cn">NULL</span>) <span class="sc">+</span></span>
+<span id="cb54-23"><a href="#cb54-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb54-24"><a href="#cb54-24" aria-hidden="true" tabindex="-1"></a>    <span class="st">"C.I. level"</span>, </span>
+<span id="cb54-25"><a href="#cb54-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"68</span><span class="sc">\\</span><span class="st">%"</span> <span class="ot">=</span> <span class="st">"gray10"</span>, <span class="st">"95</span><span class="sc">\\</span><span class="st">%"</span> <span class="ot">=</span> <span class="st">"gray60"</span>),</span>
+<span id="cb54-26"><a href="#cb54-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">guide =</span> <span class="st">"none"</span>) <span class="sc">+</span></span>
+<span id="cb54-27"><a href="#cb54-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_rep_wrap</span>(<span class="sc">~</span>on, <span class="at">scales =</span> <span class="st">"free_y"</span>, <span class="at">repeat.tick.labels =</span> <span class="cn">TRUE</span>, <span class="at">ncol =</span> <span class="dv">4</span>) <span class="sc">+</span></span>
+<span id="cb54-28"><a href="#cb54-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_paper</span>() <span class="sc">+</span></span>
+<span id="cb54-29"><a href="#cb54-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_cartesian</span>(<span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">20</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div id="fig-lp-irfs-w-repl" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-lp-irfs-w-repl-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ag-fluctuations_piscop_files/figure-html/fig-lp-irfs-w-repl-1.png" class="img-fluid figure-img" width="864">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-lp-irfs-w-repl-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;10.5: System response to one standard deviation orthogonal shock to the weather aggregate cost equation. Estimations made with local projections. The gray bands depict the 68% confidence intervals.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="var-vs-lp" class="level2" data-number="10.7">
+<h2 data-number="10.7" class="anchored" data-anchor-id="var-vs-lp"><span class="header-section-number">10.7</span> VAR vs LP</h2>
+<p>Let us graph the IRFs for both the VAR and the LPs on a single Figure.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb55"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a>df_plot_comparison <span class="ot">&lt;-</span> </span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>  df_irfs_ci <span class="sc">|&gt;</span> </span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(level <span class="sc">==</span> <span class="st">"68%"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">level =</span> <span class="fu">str_replace</span>(level, <span class="st">"</span><span class="sc">\\</span><span class="st">%"</span>, <span class="st">"</span><span class="sc">\\\\</span><span class="st">%"</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">estimation =</span> <span class="st">"VAR(2)"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb55-6"><a href="#cb55-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="at">on =</span> name, <span class="at">shocked =</span> impulse) <span class="sc">|&gt;</span> </span>
+<span id="cb55-7"><a href="#cb55-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bind_rows</span>(</span>
+<span id="cb55-8"><a href="#cb55-8" aria-hidden="true" tabindex="-1"></a>    irfs_df <span class="sc">|&gt;</span> <span class="fu">filter</span>(shocked <span class="sc">==</span> <span class="st">"Agricultural losses"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb55-9"><a href="#cb55-9" aria-hidden="true" tabindex="-1"></a>      <span class="fu">filter</span>(level <span class="sc">==</span> <span class="st">"68%"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb55-10"><a href="#cb55-10" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(<span class="at">level =</span> <span class="fu">str_replace</span>(level, <span class="st">"</span><span class="sc">\\</span><span class="st">%"</span>, <span class="st">"</span><span class="sc">\\\\</span><span class="st">%"</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb55-11"><a href="#cb55-11" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(</span>
+<span id="cb55-12"><a href="#cb55-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">mean =</span> mean <span class="sc">*</span> <span class="dv">100</span>,</span>
+<span id="cb55-13"><a href="#cb55-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">lower =</span> low <span class="sc">*</span> <span class="dv">100</span>,</span>
+<span id="cb55-14"><a href="#cb55-14" aria-hidden="true" tabindex="-1"></a>        <span class="at">upper =</span> up <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb55-15"><a href="#cb55-15" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">|&gt;</span> </span>
+<span id="cb55-16"><a href="#cb55-16" aria-hidden="true" tabindex="-1"></a>      <span class="fu">select</span>(<span class="sc">-</span>low, <span class="sc">-</span>up) <span class="sc">|&gt;</span> </span>
+<span id="cb55-17"><a href="#cb55-17" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(<span class="at">estimation =</span> <span class="st">"Local Projections"</span>)</span>
+<span id="cb55-18"><a href="#cb55-18" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb55-19"><a href="#cb55-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb55-20"><a href="#cb55-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">estimation =</span> <span class="fu">factor</span>(estimation, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"VAR(2)"</span>, <span class="st">"Local Projections"</span>))</span>
+<span id="cb55-21"><a href="#cb55-21" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb55-22"><a href="#cb55-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-23"><a href="#cb55-23" aria-hidden="true" tabindex="-1"></a>colour_1 <span class="ot">&lt;-</span> <span class="st">"#E69F00"</span></span>
+<span id="cb55-24"><a href="#cb55-24" aria-hidden="true" tabindex="-1"></a>colour_2 <span class="ot">&lt;-</span> <span class="st">"#009E73"</span></span>
+<span id="cb55-25"><a href="#cb55-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-26"><a href="#cb55-26" aria-hidden="true" tabindex="-1"></a>p_comparison <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(</span>
+<span id="cb55-27"><a href="#cb55-27" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> df_plot_comparison</span>
+<span id="cb55-28"><a href="#cb55-28" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
+<span id="cb55-29"><a href="#cb55-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_ribbon</span>(</span>
+<span id="cb55-30"><a href="#cb55-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> horizon,<span class="at">ymin =</span> lower, <span class="at">ymax =</span> upper, <span class="at">fill =</span> estimation),</span>
+<span id="cb55-31"><a href="#cb55-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> .<span class="dv">4</span></span>
+<span id="cb55-32"><a href="#cb55-32" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb55-33"><a href="#cb55-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(</span>
+<span id="cb55-34"><a href="#cb55-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> horizon, <span class="at">y =</span> mean, <span class="at">colour =</span> estimation, <span class="at">linetype =</span> estimation)</span>
+<span id="cb55-35"><a href="#cb55-35" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb55-36"><a href="#cb55-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>, <span class="at">colour =</span> <span class="st">"#444444"</span>) <span class="sc">+</span></span>
+<span id="cb55-37"><a href="#cb55-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Horizon"</span>, <span class="at">y =</span> <span class="cn">NULL</span>) <span class="sc">+</span></span>
+<span id="cb55-38"><a href="#cb55-38" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb55-39"><a href="#cb55-39" aria-hidden="true" tabindex="-1"></a>    <span class="cn">NULL</span>,</span>
+<span id="cb55-40"><a href="#cb55-40" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"VAR(2)"</span> <span class="ot">=</span> colour_1, <span class="st">"Local Projections"</span> <span class="ot">=</span> colour_2)</span>
+<span id="cb55-41"><a href="#cb55-41" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb55-42"><a href="#cb55-42" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_colour_manual</span>(</span>
+<span id="cb55-43"><a href="#cb55-43" aria-hidden="true" tabindex="-1"></a>    <span class="cn">NULL</span>,</span>
+<span id="cb55-44"><a href="#cb55-44" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"VAR(2)"</span> <span class="ot">=</span> colour_1, <span class="st">"Local Projections"</span> <span class="ot">=</span> colour_2)</span>
+<span id="cb55-45"><a href="#cb55-45" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb55-46"><a href="#cb55-46" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_linetype_manual</span>(</span>
+<span id="cb55-47"><a href="#cb55-47" aria-hidden="true" tabindex="-1"></a>    <span class="cn">NULL</span>,</span>
+<span id="cb55-48"><a href="#cb55-48" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"VAR(2)"</span> <span class="ot">=</span> <span class="st">"solid"</span>, <span class="st">"Local Projections"</span> <span class="ot">=</span> <span class="st">"dashed"</span>)</span>
+<span id="cb55-49"><a href="#cb55-49" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb55-50"><a href="#cb55-50" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_rep_wrap</span>(<span class="sc">~</span>on, <span class="at">scales =</span> <span class="st">"free_y"</span>, <span class="at">repeat.tick.labels =</span> <span class="cn">TRUE</span>, <span class="at">ncol =</span> <span class="dv">4</span>) <span class="sc">+</span></span>
+<span id="cb55-51"><a href="#cb55-51" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_paper</span>() <span class="sc">+</span></span>
+<span id="cb55-52"><a href="#cb55-52" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_cartesian</span>(<span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">20</span>))</span>
+<span id="cb55-53"><a href="#cb55-53" aria-hidden="true" tabindex="-1"></a>p_comparison</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div id="fig-irfs-w-comparison" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-irfs-w-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ag-fluctuations_piscop_files/figure-html/fig-irfs-w-comparison-1.png" class="img-fluid figure-img" width="864">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-irfs-w-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;10.6: System response to one standard deviation orthogonal shock to the weather aggregate cost equation for VAR(2) and Local Projections frameworks. The bands depict the 68% confidence intervals.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="./local_projections_seasonal_piscop.html" class="pagination-link" aria-label="Time-varying exposure to weather shocks">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-number">9</span>&nbsp; <span class="chapter-title">Time-varying exposure to weather shocks</span></span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="./robustness-data-merge-quarter.html" class="pagination-link" aria-label="Merging: quarterly data">
+        <span class="nav-page-text"><span class="chapter-number">11</span>&nbsp; <span class="chapter-title">Merging: quarterly data</span></span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
