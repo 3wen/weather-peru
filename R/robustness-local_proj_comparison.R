@@ -109,8 +109,11 @@ p_lp_lin_comparison <-
   ) +
   geom_hline(yintercept = 0, colour = "gray40") +
   ggh4x::facet_grid2(
-    name~crop, scales = "free_y", axes = "all",
-    independent = "y", switch = "y") +
+    name~crop, 
+    # scales = "free_y", 
+    axes = "all",
+    # independent = "y",
+    switch = "y") +
   scale_y_continuous(labels = scales::percent) +
   scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
   labs(x = "Horizon (in months)", y = NULL) +
@@ -144,8 +147,11 @@ if (1 == 0) {
       mapping = aes(xintercept = tc),
       colour = "#D55E00", linetype = "dashed") +
     ggh4x::facet_grid2(
-      name~crop, scales = "free_y", axes = "all",
-      independent = "y", switch = "y") +
+      name~crop, 
+      # scales = "free_y", 
+      axes = "all",
+      # independent = "y", 
+      switch = "y") +
     scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
     scale_y_continuous(labels = scales::label_percent(suffix = "\\%")) +
     labs(x = "Horizon", y = NULL) +
@@ -163,7 +169,7 @@ if (1 == 0) {
   library(tikzDevice)
   ggplot2_to_pdf(
     plot = p_lp_lin_comparison, 
-    path = "../../figs/", 
+    path = "../../../figs/", 
     filename = "fig_lp_lin_monthly_quarter_annual",
     width = 7,
     height = 4.5

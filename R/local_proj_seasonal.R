@@ -265,7 +265,9 @@ p_lp_seasonal <-
   geom_hline(yintercept = 0, colour = "gray40") +
   ggh4x::facet_grid2(
     weather~crop, 
-    scales = "free_y", independent = "y", axes = "all", switch = "y"
+    # scales = "free_y", 
+    # independent = "y", 
+    axes = "all", switch = "y"
   ) +
   geom_vline(
     data = gs_duration_df, 
@@ -299,7 +301,7 @@ if (1 == 0) {
   ggplot2_to_pdf(
     plot = p_lp_seasonal + 
       scale_y_continuous(labels = scales::percent_format(suffix = "\\%")),
-    path = "../../figs/", 
+    path = "../../../figs/", 
     filename = "fig_lp_seasonal",
     width = 7,
     height = 4.5
@@ -359,7 +361,9 @@ p_lp_season_comparison <-
     colour = "#D55E00", linetype = "dashed") +
   ggh4x::facet_grid2(
     weather~crop, 
-    scales = "free_y", independent = "y", axes = "all", switch = "y"
+    # scales = "free_y", 
+    # independent = "y", 
+    axes = "all", switch = "y"
   ) +
   scale_x_continuous(breaks = seq(0, 14, by = 2)) +
   scale_y_continuous(labels = scales::percent) +
@@ -389,7 +393,7 @@ if (1 == 0) {
   ggplot2_to_pdf(
     plot = p_lp_season_comparison + 
       scale_y_continuous(labels = scales::percent_format(suffix = "\\%")),
-    path = "../../figs/", 
+    path = "../../../figs/", 
     filename = "fig_lp_season_comparison",
     width = 7,
     height = 4.5)

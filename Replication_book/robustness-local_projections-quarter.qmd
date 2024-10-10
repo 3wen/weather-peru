@@ -761,8 +761,11 @@ ggplot() +
     mapping = aes(xintercept = tc),
     colour = "#D55E00", linetype = "dashed") +
   ggh4x::facet_grid2(
-    name~crop, scales = "free_y", axes = "all",
-    independent = "y", switch = "y") +
+    name~crop, 
+    # scales = "free_y", 
+    axes = "all",
+    # independent = "y", 
+    switch = "y") +
   scale_y_continuous(labels = scales::percent) +
   labs(x = "Horizon", y = NULL) +
   scale_fill_manual(

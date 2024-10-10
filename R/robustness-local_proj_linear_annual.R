@@ -65,6 +65,8 @@ resul_lp_year <- map(
 
 save(resul_lp_year, file = "output/resul_lp_year.rda")
 
+# load("output/resul_lp_year.rda")
+
 ## 3. Plots ----
 
 # Plotting the IRFs
@@ -125,8 +127,11 @@ p_lp_lin_year <-
     colour = "#0072B2") +
   geom_hline(yintercept = 0, colour = "#D55E00") +
   ggh4x::facet_grid2(
-    name~crop, scales = "free_y", 
-    independent = "y", switch = "y") +
+    name~crop, 
+    axes = "all",
+    # scales = "free_y", 
+    # independent = "y", 
+    switch = "y") +
   scale_y_continuous(labels = scales::percent) +
   labs(x = "Horizon", y = NULL) +
   scale_fill_manual(
@@ -169,8 +174,11 @@ if (1 == 0) {
       linewidth = 1) +
     geom_hline(yintercept = 0, colour = "gray40") +
     ggh4x::facet_grid2(
-      name~crop, scales = "free_y", 
-      independent = "y", switch = "y") +
+      name~crop, 
+      axes = "all",
+      # scales = "free_y", 
+      # independent = "y", 
+      switch = "y") +
     scale_y_continuous(labels = scales::label_percent(suffix = "\\%")) +
     labs(x = "Horizon", y = NULL) +
     scale_fill_manual(
@@ -183,7 +191,7 @@ if (1 == 0) {
   library(tikzDevice)
   ggplot2_to_pdf(
     plot = p_lp_lin_year, 
-    path = "../../figs/", 
+    path = "../../../figs/", 
     filename = "fig_lp_lin_year",
     width = 7,
     height = 4.5)

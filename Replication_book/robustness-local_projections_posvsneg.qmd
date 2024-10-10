@@ -340,8 +340,11 @@ ggplot() +
     colour = "#0072B2") +
   geom_hline(yintercept = 0, colour = "gray40") +
   ggh4x::facet_grid2(
-    name~crop, scales = "free_y", 
-    independent = "y", switch = "y") +
+    name~crop, 
+    # scales = "free_y", 
+    # independent = "y", 
+    axes = "all",
+    switch = "y") +
   scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
   scale_y_continuous(labels = scales::percent) +
   labs(x = "Horizon", y = NULL) +
@@ -353,6 +356,40 @@ ggplot() +
   theme(strip.placement = "outside")
 ```
 
+With free y-axis:
+```{r}
+#| fig-cap: Agricultural production response to a surprise weather shock (free y-axis)
+#| label: fig-simple-projection-free
+#| fig-height: 6
+ggplot() +
+  geom_ribbon(
+    data = df_irfs_lp_ci |> filter(horizon <= !!nb_h),
+    mapping = aes(
+      x = horizon,
+      ymin = lower, ymax = upper, fill = level),
+    alpha = .2
+  ) +
+  geom_line(
+    data = df_irfs_lp |> filter(horizon <= !!nb_h),
+    mapping = aes(x = horizon, y = shock_1_sd),
+    colour = "#0072B2") +
+  geom_hline(yintercept = 0, colour = "gray40") +
+  ggh4x::facet_grid2(
+    name~crop, 
+    scales = "free_y",
+    independent = "y",
+    axes = "all",
+    switch = "y") +
+  scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Horizon", y = NULL) +
+  scale_fill_manual(
+    "C.I. level", 
+    values = c("68%" = "gray10", "95%" = "gray60")
+  ) +
+  theme_paper() +
+  theme(strip.placement = "outside")
+```
 
 
 ### Exporting results {#sec-lp-linear-export-posnegsurprise}

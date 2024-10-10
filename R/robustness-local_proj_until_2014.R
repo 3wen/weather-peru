@@ -133,8 +133,11 @@ p_lp_lin <-
     mapping = aes(xintercept = tc),
     colour = "#D55E00", linetype = "dashed") +
   ggh4x::facet_grid2(
-    name~crop, scales = "free_y", axes = "all",
-    independent = "y", switch = "y") +
+    name~crop, 
+    # scales = "free_y", 
+    axes = "all",
+    # independent = "y", 
+    switch = "y") +
   scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
   scale_y_continuous(labels = scales::percent) +
   labs(x = "Horizon", y = NULL) +
@@ -211,8 +214,11 @@ p_lp_lin_comparison_2014 <- ggplot() +
     mapping = aes(xintercept = tc),
     colour = "#D55E00", linetype = "dashed") +
   ggh4x::facet_grid2(
-    name~crop, scales = "free_y", axes = "all",
-    independent = "y", switch = "y") +
+    name~crop,
+    # scales = "free_y", 
+    axes = "all",
+    # independent = "y",
+    switch = "y") +
   scale_y_continuous(labels = scales::percent) +
   scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
   labs(x = "Horizon (in months)", y = NULL) +
@@ -253,8 +259,11 @@ if (1 == 0) {
       mapping = aes(xintercept = tc),
       colour = "#D55E00", linetype = "dashed") +
     ggh4x::facet_grid2(
-      name~crop, scales = "free_y", axes = "all",
-      independent = "y", switch = "y") +
+      name~crop, 
+      # scales = "free_y", 
+      axes = "all",
+      # independent = "y",
+      switch = "y") +
     scale_x_continuous(breaks = seq(0, nb_h, by = 2)) +
     scale_y_continuous(labels = scales::label_percent(suffix = "\\%")) +
     labs(x = "Horizon", y = NULL) +
@@ -273,7 +282,7 @@ if (1 == 0) {
   library(tikzDevice)
   ggplot2_to_pdf(
     plot = p_lp_lin_comparison_2014, 
-    path = "../../figs/", 
+    path = "../../../figs/", 
     filename = "fig_lp_lin_until_2014",
     width = 7,
     height = 4.5

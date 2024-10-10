@@ -125,8 +125,11 @@ p_lp_lin_quarter <-
     mapping = aes(xintercept = tc),
     colour = "#D55E00", linetype = "dashed") +
   ggh4x::facet_grid2(
-    name~crop, scales = "free_y", axes = 'all',
-    independent = "y", switch = "y") +
+    name~crop, 
+    # scales = "free_y", 
+    axes = 'all',
+    # independent = "y",
+    switch = "y") +
   scale_y_continuous(labels = scales::percent) +
   labs(x = "Horizon (quarters)", y = NULL) +
   scale_fill_manual(
@@ -172,8 +175,11 @@ if (1 == 0) {
       mapping = aes(xintercept = tc),
       colour = "#D55E00", linetype = "dashed") +
     ggh4x::facet_grid2(
-      name~crop, scales = "free_y", 
-      independent = "y", switch = "y") +
+      name~crop, 
+      # scales = "free_y", 
+      axes = 'all',
+      # independent = "y",
+      switch = "y") +
     scale_y_continuous(labels = scales::label_percent(suffix = "\\%")) +
     labs(x = "Horizon", y = NULL) +
     scale_fill_manual(
@@ -187,7 +193,7 @@ if (1 == 0) {
   library(tikzDevice)
   ggplot2_to_pdf(
     plot = p_lp_lin_quarter, 
-    path = "../../figs/", 
+    path = "../../../figs/", 
     filename = "fig_lp_lin_quarter",
     width = 7,
     height = 4.5

@@ -747,8 +747,11 @@ ggplot() +
     colour = "#0072B2") +
   geom_hline(yintercept = 0, colour = "gray40") +
   ggh4x::facet_grid2(
-    name~crop, scales = "free_y", axes = "all",
-    independent = "y", switch = "y") +
+    name~crop, 
+    # scales = "free_y", 
+    axes = "all",
+    # independent = "y", 
+    switch = "y") +
   scale_y_continuous(labels = scales::percent) +
   labs(x = "Horizon (years)", y = NULL) +
   scale_fill_manual(
