@@ -1,7 +1,7 @@
 # Replication materials
 
 This repository contains the replication materials for the article titled 
-_"The Dynamic Effects of Weather Shocks on Agricultural Production"_.
+_"The Dynamic Effects of Weather Shocks on Agricultural Production"_, forthcoming in _Journal of Environmental Economics and Management_.
 
 The working paper is on HAL: <https://hal.science/halshs-04443037>
 
