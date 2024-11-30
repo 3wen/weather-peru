@@ -12,7 +12,7 @@ The full version of replication codes can be downloaded here (412 Mo): <https://
 A light version of the dataset to reproduce the estimations (starting from the second part of the ebook) can be downloaded here (1.2 Mo): <https://egallic.fr/Recherche/weather-peru-v2/data_light.zip> 
 
 
-## Reference of the paper (preprint)
+## Reference of the paper
 
 ```
 title = {The dynamic effects of weather shocks on agricultural production},
