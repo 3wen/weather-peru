@@ -1,7 +1,7 @@
 # Replication materials
 
 This repository contains the replication materials for the article titled 
-_"The Dynamic Effects of Weather Shocks on Agricultural Production"_, forthcoming in _Journal of Environmental Economics and Management_.
+_"The Dynamic Effects of Weather Shocks on Agricultural Production"_, published in the _Journal of Environmental Economics and Management_.
 
 The working paper is on HAL: <https://hal.science/halshs-04443037>
 
@@ -15,13 +15,15 @@ A light version of the dataset to reproduce the estimations (starting from the s
 ## Reference of the paper (preprint)
 
 ```
-@unpublished{crofils2024,
- title = {{The Dynamic Effects of Weather Shocks on Agricultural Production}},
- author = {Crofils, C{\'e}dric and Gallic, Ewen and Vermandel, Gauthier},
- url = {https://shs.hal.science/halshs-04443037},
- note = {working paper or preprint},
- year = {2024},
- month = Jul,
- keywords = {Weather shocks ; Agriculture ; Local projections ; VAR}
+title = {The dynamic effects of weather shocks on agricultural production},
+journal = {Journal of Environmental Economics and Management},
+volume = {130},
+pages = {103078},
+year = {2025},
+issn = {0095-0696},
+doi = {10.1016/j.jeem.2024.103078},
+url = {https://www.sciencedirect.com/science/article/pii/S0095069624001529},
+author = {Crofils, C\'edric and Gallic, Ewen and Vermandel, Gauthier},
+keywords = {Weather shocks, Agriculture, Local projections, VAR},
 }
 ```
