@@ -3,7 +3,8 @@
 This repository contains the replication materials for the article titled 
 _"The Dynamic Effects of Weather Shocks on Agricultural Production"_, published in the _Journal of Environmental Economics and Management_.
 
-The working paper is on HAL: <https://hal.science/halshs-04443037>
+The paper is available here: <https://www.sciencedirect.com/science/article/pii/S0095069624001529>.
+The working paper version is on HAL: <https://hal.science/halshs-04443037>.
 
 A companion html e-book that explains the codes and provides supplementary materials can be accessed at the following url: <https://3wen.github.io/weather-peru>.
 
